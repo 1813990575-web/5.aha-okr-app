@@ -43,7 +43,8 @@
   },
   "build": {
     "appId": "com.aha.okr",
-    "productName": "Aha OKR",
+    "productName": "AhaOKR",
+    "artifactName": "AhaOKR-${version}-${arch}.${ext}",
     "directories": {
       "output": "release"
     },
@@ -68,7 +69,9 @@
       ]
     },
     "dmg": {
-      "sign": false
+      "sign": false,
+      "title": "AhaOKR ${version}",
+      "icon": false
     }
   }
 }
