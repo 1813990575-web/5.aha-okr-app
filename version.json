@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0",
+  "version": "1.0.4",
   "downloadUrl": "https://github.com/1813990575-web/5.Aha-OKR/releases/latest",
-  "releaseNotes": "新版本已发布，请下载最新安装包以获取更好的体验。"
+  "releaseNotes": "v1.0.4 更新内容：\n- 修复 Intel Mac 渲染问题\n- 修复应用名称显示问题\n- 优化启动台兼容性"
 }
