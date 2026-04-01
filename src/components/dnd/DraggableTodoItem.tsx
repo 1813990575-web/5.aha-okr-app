@@ -1,4 +1,4 @@
-import React, { useRef } from 'react'
+import React from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { GripVertical } from 'lucide-react'
 
@@ -15,9 +15,6 @@ export const DraggableTodoItem: React.FC<DraggableTodoItemProps> = ({
   color,
   children,
 }) => {
-  // 关键修复：将 setNodeRef 绑定在外层容器
-  const containerRef = useRef<HTMLDivElement>(null)
-  
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: id,
     data: {
@@ -28,15 +25,9 @@ export const DraggableTodoItem: React.FC<DraggableTodoItemProps> = ({
     },
   })
 
-  // 手动将 setNodeRef 绑定到容器
-  const bindRef = (el: HTMLDivElement | null) => {
-    containerRef.current = el
-    setNodeRef(el)
-  }
-
   return (
     <div
-      ref={bindRef}
+      ref={setNodeRef}
       className={`
         relative group
         ${isDragging ? 'opacity-50' : ''}

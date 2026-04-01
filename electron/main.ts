@@ -1,6 +1,9 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import path from 'path'
 
+// 版本检查器导入
+import { checkForUpdates, getCurrentVersion } from './version-checker'
+
 // Store 数据层导入
 import {
   initStore,
@@ -298,6 +301,13 @@ function setupIpcHandlers() {
       throw error
     }
   })
+
+  // ==================== 版本信息 ====================
+
+  // 获取当前版本号
+  ipcMain.handle('app:getVersion', async () => {
+    return getCurrentVersion()
+  })
 }
 
 app.whenReady().then(async () => {
@@ -309,6 +319,11 @@ app.whenReady().then(async () => {
 
   // 创建窗口
   createWindow()
+
+  // 延迟检查版本更新（等待窗口加载完成）
+  setTimeout(() => {
+    checkForUpdates()
+  }, 3000)
 })
 
 app.on('window-all-closed', () => {

@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { useSidebarTheme, SidebarTheme, THEME_CONFIGS } from '../contexts/SidebarThemeContext'
+import { useSidebarTheme, SidebarTheme } from '../contexts/SidebarThemeContext'
 
 interface SolidColorOption {
   id: SidebarTheme

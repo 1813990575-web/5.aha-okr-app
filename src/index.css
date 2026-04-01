@@ -127,3 +127,22 @@
 .scrollbar-show::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 0, 0, 0.25);
 }
+
+/* 版本号显示样式 */
+.version-display {
+  display: inline-block;
+}
+
+.version-text {
+  font-size: 11px;
+  color: rgba(0, 0, 0, 0.35);
+  font-weight: 500;
+  letter-spacing: 0.3px;
+}
+
+/* 暗色模式适配 */
+@media (prefers-color-scheme: dark) {
+  .version-text {
+    color: rgba(255, 255, 255, 0.35);
+  }
+}

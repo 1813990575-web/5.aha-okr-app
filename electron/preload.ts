@@ -69,10 +69,20 @@ const dailyTasksAPI: DailyTasksAPI = {
   getTodayString: () => ipcRenderer.invoke('daily:getTodayString'),
 }
 
+// App 信息接口
+export interface AppAPI {
+  getVersion: () => Promise<string>
+}
+
+const appAPI: AppAPI = {
+  getVersion: () => ipcRenderer.invoke('app:getVersion'),
+}
+
 // 暴露 API 到渲染进程
 contextBridge.exposeInMainWorld('electronAPI', {
   database: databaseAPI,
   dailyTasks: dailyTasksAPI,
+  app: appAPI,
 })
 
 // 类型声明
@@ -81,6 +91,7 @@ declare global {
     electronAPI: {
       database: DatabaseAPI
       dailyTasks: DailyTasksAPI
+      app: AppAPI
     }
   }
 }

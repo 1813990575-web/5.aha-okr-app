@@ -6,7 +6,6 @@
 import { randomUUID } from 'crypto'
 import path from 'path'
 import fs from 'fs'
-import { app } from 'electron'
 
 // 数据类型定义
 export interface Item {

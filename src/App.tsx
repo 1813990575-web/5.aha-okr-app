@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { Sidebar } from './components/Sidebar'
 import { MainBoard } from './components/MainBoard'
 import { Timeline } from './components/Timeline'

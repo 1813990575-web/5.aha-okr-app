@@ -25,8 +25,12 @@ const dailyTasksAPI = {
   toggleTaskStatus: (id) => electron.ipcRenderer.invoke("daily:toggleTaskStatus", id),
   getTodayString: () => electron.ipcRenderer.invoke("daily:getTodayString")
 };
+const appAPI = {
+  getVersion: () => electron.ipcRenderer.invoke("app:getVersion")
+};
 electron.contextBridge.exposeInMainWorld("electronAPI", {
   database: databaseAPI,
-  dailyTasks: dailyTasksAPI
+  dailyTasks: dailyTasksAPI,
+  app: appAPI
 });
 //# sourceMappingURL=preload.js.map

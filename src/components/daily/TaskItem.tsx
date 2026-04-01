@@ -3,7 +3,7 @@ import { Check, Trash2, Link2 } from 'lucide-react'
 import type { DailyTask } from '../../store/index'
 
 interface TaskItemProps {
-  task: DailyTask & { origin?: string; color?: string | null }
+  task: DailyTask & { origin?: string | null; color?: string | null }
   onToggle: (id: string) => void
   onDelete: (id: string) => void
   onUpdateContent?: (id: string, content: string) => void

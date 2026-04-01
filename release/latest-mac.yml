@@ -1,0 +1,11 @@
+version: 1.0.0
+files:
+  - url: Aha-OKR-1.0.0-arm64.dmg
+    sha512: sxfACKRXfXay/teL0a11V0cu4WDT6DrW4Hf92GhhQPI8ymWXHnr/ONPd5E1tVudyxKCQPpbruoSdH/RqQKFq3w==
+    size: 99551096
+  - url: Aha-OKR-1.0.0.dmg
+    sha512: o8MZMAPOMuKmYfL3BUb/ZvtW2Akk+6zMMDq24HNpiE+rL+cada/HHZ3FftjFSoDi9Hu/iIyBq/QvKu4VEZsxjw==
+    size: 104596416
+path: Aha-OKR-1.0.0-arm64.dmg
+sha512: sxfACKRXfXay/teL0a11V0cu4WDT6DrW4Hf92GhhQPI8ymWXHnr/ONPd5E1tVudyxKCQPpbruoSdH/RqQKFq3w==
+releaseDate: '2026-04-01T17:26:12.587Z'

@@ -1,0 +1,17 @@
+directories:
+  output: release
+  buildResources: build
+appId: com.aha.okr
+productName: Aha OKR
+files:
+  - filter:
+      - dist/**/*
+      - dist-electron/**/*
+mac:
+  category: public.app-category.productivity
+  target:
+    - target: dmg
+      arch:
+        - arm64
+        - x64
+electronVersion: 28.3.3

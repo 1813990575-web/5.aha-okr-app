@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronDown, ChevronRight, Circle, Triangle, Plus, Trash2, CalendarPlus } from 'lucide-react'
 import { SegmentedControl } from './SegmentedControl'
 import { SidebarThemeSelector } from './SidebarThemeSelector'
+import { VersionDisplay } from './VersionDisplay'
 import { useSidebarTheme } from '../contexts/SidebarThemeContext'
 import { useDatabase, type ResetLevel } from '../hooks/useDatabase'
 import { DraggableTodoItem } from './dnd/DraggableTodoItem'
@@ -298,6 +299,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeObjective: externalActiv
             style={{ color: themeConfig.isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.4)' }}
           />
         </div>
+
+        {/* 版本号 */}
+        <div className="mt-2 px-2">
+          <VersionDisplay />
+        </div>
       </div>
 
       {/* 呼吸灯动画样式 */}
@@ -588,7 +594,6 @@ const ObjectiveItem: React.FC<ObjectiveItemProps> = ({
   const isObjective = item.iconType === 'objective'
   const isKR = item.iconType === 'keyresult'
   const isTodo = item.iconType === 'todo'
-  const canExpand = isObjective || isKR
 
   // 判断是否为末端 TODO（可拖拽）
   const isDraggableTodo = isTodo

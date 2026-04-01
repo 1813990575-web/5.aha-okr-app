@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 interface DatePickerProps {
   isOpen: boolean
@@ -150,7 +150,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({
             <div key={index} className="aspect-square">
               {item.day !== null && (
                 <button
-                  onClick={() => handleSelectDay(item.day)}
+                  onClick={() => handleSelectDay(item.day as number)}
                   className={`
                     w-full h-full flex flex-col items-center justify-center rounded-lg text-[13px] font-medium
                     transition-all duration-150
