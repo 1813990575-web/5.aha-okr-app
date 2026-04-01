@@ -1,0 +1,69 @@
+import React, { useRef } from 'react'
+import { useDraggable } from '@dnd-kit/core'
+import { GripVertical } from 'lucide-react'
+
+interface DraggableTodoItemProps {
+  id: string
+  title: string
+  color?: string | null
+  children: React.ReactNode
+}
+
+export const DraggableTodoItem: React.FC<DraggableTodoItemProps> = ({
+  id,
+  title,
+  color,
+  children,
+}) => {
+  // 关键修复：将 setNodeRef 绑定在外层容器
+  const containerRef = useRef<HTMLDivElement>(null)
+  
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: id,
+    data: {
+      id,
+      type: 'TODO',
+      title,
+      color,
+    },
+  })
+
+  // 手动将 setNodeRef 绑定到容器
+  const bindRef = (el: HTMLDivElement | null) => {
+    containerRef.current = el
+    setNodeRef(el)
+  }
+
+  return (
+    <div
+      ref={bindRef}
+      className={`
+        relative group
+        ${isDragging ? 'opacity-50' : ''}
+      `}
+    >
+      {/* 子元素内容 */}
+      {children}
+
+      {/* 拖拽手柄 - 只绑定 listeners/attributes，不绑定 setNodeRef */}
+      <div
+        {...attributes}
+        {...listeners}
+        className="
+          absolute right-3 top-1/2 -translate-y-1/2 z-10
+          w-8 h-8 flex items-center justify-center
+          cursor-grab active:cursor-grabbing
+          opacity-0 group-hover:opacity-100
+          transition-opacity duration-150
+          rounded hover:bg-gray-200/50
+        "
+        style={{
+          pointerEvents: 'auto',
+        }}
+        title="拖拽到中间面板"
+      >
+        <GripVertical className="w-4 h-4 text-gray-400" />
+      </div>
+    </div>
+  )
+}

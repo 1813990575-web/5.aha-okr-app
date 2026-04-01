@@ -1,0 +1,129 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply box-border;
+  }
+  
+  html, body, #root {
+    @apply h-full w-full m-0 p-0 overflow-hidden;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer components {
+  .macos-vibrancy {
+    background: rgba(246, 246, 246, 0.72);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+  }
+  
+  .macos-button {
+    @apply rounded-macos-sm px-4 py-2 text-sm font-medium transition-all duration-150;
+    @apply bg-macos-accent text-white;
+    @apply hover:bg-macos-accent-hover;
+    @apply active:scale-95;
+  }
+  
+  .macos-button-secondary {
+    @apply rounded-macos-sm px-4 py-2 text-sm font-medium transition-all duration-150;
+    @apply bg-macos-gray-100 text-macos-gray-700;
+    @apply hover:bg-macos-gray-200;
+    @apply active:scale-95;
+  }
+  
+  .macos-card {
+    @apply rounded-macos bg-white shadow-sm;
+    @apply border border-macos-gray-200;
+  }
+  
+  .macos-input {
+    @apply rounded-macos-sm px-3 py-2 text-sm;
+    @apply bg-white border border-macos-gray-300;
+    @apply focus:outline-none focus:ring-2 focus:ring-macos-accent/20 focus:border-macos-accent;
+  }
+  
+  .macos-sidebar-item {
+    @apply flex items-center gap-3 px-3 py-2 rounded-macos-sm;
+    @apply text-macos-gray-600 text-sm;
+    @apply hover:bg-macos-gray-100 hover:text-macos-gray-900;
+    @apply transition-colors duration-150 cursor-pointer;
+  }
+  
+  .macos-sidebar-item.active {
+    @apply bg-macos-accent/10 text-macos-accent;
+  }
+  
+  .traffic-light-space {
+    height: 52px;
+  }
+
+  /* 可拖动区域 - 用于无边框窗口 */
+  .app-drag-region {
+    -webkit-app-region: drag;
+    app-region: drag;
+  }
+
+  /* 不可拖动区域（按钮等交互元素） */
+  .app-no-drag {
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+  }
+}
+
+/* macOS 风格滚动条 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+/* 选中文字样式 */
+::selection {
+  background: rgba(0, 122, 255, 0.2);
+}
+
+/* 滚动条隐藏/显示工具类 */
+.scrollbar-hide {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
+.scrollbar-show {
+  scrollbar-width: thin; /* Firefox */
+  -ms-overflow-style: auto; /* IE and Edge */
+}
+
+.scrollbar-show::-webkit-scrollbar {
+  display: block;
+  width: 6px;
+}
+
+.scrollbar-show::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
+}
+
+.scrollbar-show::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
