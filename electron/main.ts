@@ -1,6 +1,11 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import path from 'path'
 
+// 禁用 GPU 沙盒，修复 Intel Mac 上的渲染问题
+app.commandLine.appendSwitch('disable-gpu-sandbox')
+// 禁用硬件加速，避免 Intel 芯片的渲染卡顿
+app.disableHardwareAcceleration()
+
 // 版本检查器导入
 import { checkForUpdates, getCurrentVersion } from './version-checker'
 
