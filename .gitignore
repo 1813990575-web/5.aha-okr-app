@@ -32,3 +32,7 @@ logs/
 *.app
 *.exe
 *.dmg
+
+# Release directory
+release/
+release-electron/
