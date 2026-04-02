@@ -124,6 +124,7 @@ function App() {
 
   // 处理手动添加任务
   const handleCreateTask = useCallback(async (content: string) => {
+    console.log("[DIAG] App handleCreateTask called with:", content)
     try {
       const dateKey = formatDateKey(selectedDate)
       const newTask = await window.electronAPI.dailyTasks.createTask({
@@ -133,8 +134,13 @@ function App() {
         linkedGoalId: null,
         origin: 'manual',
       })
+      console.log("[DIAG] Task created, updating state with:", newTask)
       // 新任务添加到最下方
-      setTasks(prev => [...prev, newTask])
+      setTasks(prev => {
+        console.log("[DIAG] setTasks callback called, prev length:", prev.length)
+        return [...prev, newTask]
+      })
+      console.log("[DIAG] setTasks called")
     } catch (error) {
       console.error('[App] 创建任务失败:', error)
     }
@@ -167,9 +173,15 @@ function App() {
 
   // 处理删除任务
   const handleDeleteTask = useCallback(async (id: string) => {
+    console.log("[DIAG] App handleDeleteTask called for id:", id)
     try {
       await window.electronAPI.dailyTasks.deleteTask(id)
-      setTasks(prev => prev.filter(task => task.id !== id))
+      console.log("[DIAG] Task deleted from DB, updating state")
+      setTasks(prev => {
+        console.log("[DIAG] setTasks filter callback, prev length:", prev.length)
+        return prev.filter(task => task.id !== id)
+      })
+      console.log("[DIAG] setTasks called for delete")
     } catch (error) {
       console.error('[App] 删除任务失败:', error)
     }

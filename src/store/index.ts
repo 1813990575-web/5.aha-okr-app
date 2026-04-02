@@ -116,20 +116,44 @@ function loadFromFile(): void {
 }
 
 /**
- * 保存数据到文件
+ * 保存数据到文件（异步防抖版本）
+ * 解决 Intel Mac 上同步 I/O 可能阻塞渲染线程的问题
  */
+let saveTimeout: NodeJS.Timeout | null = null
+let pendingSave = false
+
 function saveToFile(): void {
-  try {
-    const filePath = dataFilePath || getDataFilePath()
-    const data = JSON.stringify(memoryCache, null, 2)
-    
-    // 直接写入，不使用临时文件
-    fs.writeFileSync(filePath, data, { encoding: 'utf-8' })
-    console.log('[Store] 数据保存成功:', filePath)
-  } catch (error) {
-    console.error('[Store] 保存数据失败:', error)
-    throw error
+  // 标记有待保存的数据
+  pendingSave = true
+  
+  // 清除之前的定时器
+  if (saveTimeout) {
+    clearTimeout(saveTimeout)
   }
+  
+  // 延迟 300ms 执行保存，实现防抖
+  saveTimeout = setTimeout(() => {
+    if (!pendingSave) return
+    
+    try {
+      const filePath = dataFilePath || getDataFilePath()
+      const data = JSON.stringify(memoryCache, null, 2)
+      
+      // 异步写入，避免阻塞主线程
+      fs.writeFile(filePath, data, { encoding: 'utf-8' }, (err) => {
+        if (err) {
+          console.error('[Store] 异步保存数据失败:', err)
+        } else {
+          console.log('[Store] 数据异步保存成功:', filePath)
+        }
+      })
+      
+      pendingSave = false
+    } catch (error) {
+      console.error('[Store] 准备保存数据失败:', error)
+      pendingSave = false
+    }
+  }, 300)
 }
 
 /**

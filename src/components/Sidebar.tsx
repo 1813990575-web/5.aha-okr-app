@@ -151,7 +151,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeObjective: externalActiv
 
   // 处理删除
   const handleDelete = async (id: string, index: number) => {
+    console.log("[DIAG] Sidebar Delete Triggered for item:", id)
     const result = await deleteItem(id)
+    console.log("[DIAG] Sidebar Delete result:", result)
     if (result.success) {
       const prevIndex = Math.max(0, index - 1)
       const prevItem = items[prevIndex]
@@ -186,6 +188,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeObjective: externalActiv
 
   // 处理更新颜色
   const handleUpdateColor = async (dbId: string, colorKey: string) => {
+    console.log("[DIAG] Color Change Triggered for item:", dbId, "color:", colorKey)
     const colorOption = COLOR_OPTIONS.find(c => c.key === colorKey)
     if (!colorOption) return
 
@@ -194,7 +197,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeObjective: externalActiv
         await (window as any).electronAPI.database.updateItem(dbId, {
           color: colorKey === 'none' ? null : colorKey
         })
+        console.log("[DIAG] Color updated in DB, refreshing...")
         await refresh()
+        console.log("[DIAG] Refresh completed")
       }
     } catch (err) {
       console.error('[Sidebar] 更新颜色失败:', err)

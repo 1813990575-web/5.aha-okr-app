@@ -55,6 +55,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
 
   // 处理删除
   const handleDelete = () => {
+    console.log("[DIAG] Delete Triggered for task:", task.id)
     onDelete(task.id)
     handleCloseContextMenu()
   }

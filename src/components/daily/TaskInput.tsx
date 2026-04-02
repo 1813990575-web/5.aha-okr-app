@@ -10,6 +10,9 @@ export const TaskInput: React.FC<TaskInputProps> = ({ onSubmit, disabled }) => {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  // 诊断日志：每次渲染时打印当前值
+  console.log("[DIAG] Component Re-rendered with value:", content)
+
   const handleSubmit = async () => {
     const trimmed = content.trim()
     if (!trimmed || isSubmitting) return
@@ -55,7 +58,10 @@ export const TaskInput: React.FC<TaskInputProps> = ({ onSubmit, disabled }) => {
         ref={inputRef}
         type="text"
         value={content}
-        onChange={(e) => setContent(e.target.value)}
+        onChange={(e) => {
+          console.log("[DIAG] Input Triggered:", e.target.value)
+          setContent(e.target.value)
+        }}
         onKeyDown={handleKeyDown}
         onBlur={handleSubmit}
         placeholder={isSubmitting ? '保存中...' : '添加待办事项...'}
