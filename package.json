@@ -1,6 +1,6 @@
 {
   "name": "aha-okr",
-  "version": "1.1.1",
+  "version": "1.0.1",
   "description": "Aha OKR - macOS风格桌面应用",
   "main": "dist-electron/main.js",
   "scripts": {
@@ -29,13 +29,13 @@
     "@typescript-eslint/parser": "^6.14.0",
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.16",
-    "electron": "^25.9.8",
-    "electron-builder": "^24.9.1",
+    "electron": "25.9.8",
+    "electron-builder": "^24.13.3",
     "eslint": "^8.55.0",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.5",
     "postcss": "^8.4.32",
-    "tailwindcss": "^3.3.6",
+    "tailwindcss": "^3.4.0",
     "typescript": "^5.2.2",
     "vite": "^5.0.8",
     "vite-plugin-electron": "^0.28.0",
@@ -59,10 +59,7 @@
       "target": [
         {
           "target": "dmg",
-          "arch": [
-            "arm64",
-            "x64"
-          ]
+          "arch": ["arm64", "x64"]
         }
       ]
     },
