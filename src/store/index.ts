@@ -76,12 +76,28 @@ export function getTodayString(): string {
 
 /**
  * 获取数据文件路径
- * 使用项目目录下的 data/db.json，避免 Application Support 权限问题
+ * 使用 Electron 的 userData 目录，确保打包后也能正常工作
  */
 function getDataFilePath(): string {
-  // 使用绝对路径指向项目目录
-  const projectRoot = '/Users/aha/mine-apps/5.Aha-OKR'
-  const dataDir = path.join(projectRoot, 'data')
+  // 尝试获取 electron app 对象
+  let userDataPath: string
+  
+  try {
+    // 动态导入 electron，避免在渲染进程中出错
+    const { app } = require('electron')
+    if (app && app.getPath) {
+      userDataPath = app.getPath('userData')
+      console.log('[Store] 使用 Electron userData 目录:', userDataPath)
+    } else {
+      throw new Error('Electron app not available')
+    }
+  } catch (e) {
+    // 开发环境回退到项目目录
+    userDataPath = process.cwd()
+    console.log('[Store] 使用项目目录:', userDataPath)
+  }
+  
+  const dataDir = path.join(userDataPath, 'data')
   
   // 确保 data 目录存在
   if (!fs.existsSync(dataDir)) {

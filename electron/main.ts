@@ -69,6 +69,12 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'))
   }
 
+  // 窗口关闭前强制保存（解决 Intel Mac 数据丢失）
+  mainWindow.on('close', (event) => {
+    console.log('[Main] 窗口即将关闭，执行强制保存...')
+    forceSyncSave()
+  })
+
   mainWindow.on('closed', () => {
     mainWindow = null
   })

@@ -1,13 +1,24 @@
 {
   "items": [
     {
+      "id": "888b6bbd-d18f-4272-81e5-5d38b9dc8503",
+      "type": "O",
+      "parent_id": null,
+      "title": "hello",
+      "content": "",
+      "status": 0,
+      "sort_order": 0,
+      "created_at": "2026-04-02T04:21:13.900Z",
+      "updated_at": "2026-04-02T04:21:17.906Z"
+    },
+    {
       "id": "c8536b49-4384-4a25-820c-c0d7a4169dca",
       "type": "O",
       "parent_id": null,
       "title": "使用",
       "content": "",
       "status": 0,
-      "sort_order": 0,
+      "sort_order": 1,
       "created_at": "2026-04-01T19:54:28.780Z",
       "updated_at": "2026-04-01T19:54:31.519Z"
     },
@@ -18,7 +29,7 @@
       "title": "你好",
       "content": "",
       "status": 0,
-      "sort_order": 1,
+      "sort_order": 2,
       "created_at": "2026-04-01T19:54:24.774Z",
       "updated_at": "2026-04-01T19:54:27.660Z"
     },
@@ -29,7 +40,7 @@
       "title": "发布 vibe coding 视频",
       "content": "制作并发布一系列关于 vibe coding 的教学视频",
       "status": 0,
-      "sort_order": 46,
+      "sort_order": 47,
       "total_focus_time": 0,
       "created_at": "2026-03-31T02:09:31.000Z",
       "updated_at": "2026-04-01T08:13:42.309Z",
@@ -193,6 +204,26 @@
     }
   ],
   "dailyTasks": [
+    {
+      "content": "参？",
+      "isDone": false,
+      "date": "2026-04-02",
+      "linkedGoalId": null,
+      "origin": "manual",
+      "id": "4272a9fb-5dc8-4736-a25d-22e446e63fb5",
+      "created_at": "2026-04-02T04:21:13.856Z",
+      "updated_at": "2026-04-02T04:21:13.856Z"
+    },
+    {
+      "content": "这是一条测试",
+      "isDone": false,
+      "date": "2026-04-02",
+      "linkedGoalId": null,
+      "origin": "manual",
+      "id": "2cbe805e-c8cd-49dc-ad83-555882218f81",
+      "created_at": "2026-04-02T04:21:10.062Z",
+      "updated_at": "2026-04-02T04:21:10.062Z"
+    },
     {
       "content": "我如何使用",
       "isDone": false,
