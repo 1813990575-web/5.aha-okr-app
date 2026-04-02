@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: macos-latest
@@ -25,29 +28,51 @@ jobs:
 
       - name: Build ${{ matrix.arch }}
         run: npx electron-builder --mac ${{ matrix.arch }} --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
       - name: Sign app
-        run: codesign --deep --force --sign "-" "release/mac${{ matrix.arch == 'arm64' && '-arm64' || '' }}/AhaOKR.app"
-
-      - name: Create DMG
         run: |
-          mkdir -p final
-          hdiutil create -volname "AhaOKR" -srcfolder "release/mac${{ matrix.arch == 'arm64' && '-arm64' || '' }}/AhaOKR.app" -ov -format UDZO "final/AhaOKR-${{ matrix.arch }}.dmg"
+          APP_PATH="release/mac${{ matrix.arch == 'arm64' && '-arm64' || '' }}/AhaOKR.app"
+          codesign --deep --force --sign "-" "$APP_PATH"
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.arch }}-dmg
-          path: final/*.dmg
+          name: ${{ matrix.arch }}-build
+          path: release/*/
 
   release:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - uses: actions/download-artifact@v4
 
-      - uses: softprops/action-gh-release@v1
+      - name: Create DMG files
+        run: |
+          mkdir -p final
+          # Create arm64 DMG
+          if [ -d "arm64-build/mac-arm64/AhaOKR.app" ]; then
+            hdiutil create -volname "AhaOKR" -srcfolder "arm64-build/mac-arm64/AhaOKR.app" -ov -format UDZO "final/AhaOKR-arm64.dmg"
+          fi
+          # Create x64 DMG
+          if [ -d "x64-build/mac/AhaOKR.app" ]; then
+            hdiutil create -volname "AhaOKR" -srcfolder "x64-build/mac/AhaOKR.app" -ov -format UDZO "final/AhaOKR-x64.dmg"
+          fi
+          ls -la final/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
         with:
-          files: '*-dmg/*.dmg'
-          generate_release_notes: true
+          files: final/*.dmg
+          name: AhaOKR ${{ github.ref_name }}
+          body: |
+            ## AhaOKR ${{ github.ref_name }}
+
+            ### 安装说明
+            - Apple Silicon (M1/M2/M3): 下载 `AhaOKR-arm64.dmg`
+            - Intel Mac: 下载 `AhaOKR-x64.dmg`
+          draft: false
+          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
