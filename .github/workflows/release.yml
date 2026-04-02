@@ -34,20 +34,25 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
           echo "TAG_NAME=v$VERSION" >> $GITHUB_OUTPUT
       
+      - name: Check build outputs
+        run: |
+          ls -la ./release/
+      
       - name: Create Release and Upload Assets
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            ./release/AhaOKR-${{ steps.get_version.outputs.VERSION }}-arm64.dmg
-            ./release/AhaOKR-${{ steps.get_version.outputs.VERSION }}-x64.dmg
+            ./release/AhaOKR-*-arm64.dmg
+            ./release/AhaOKR-*-x64.dmg
+            ./release/AhaOKR-*-x64.zip
           name: AhaOKR ${{ github.ref_name }}
           body: |
             ## AhaOKR ${{ github.ref_name }}
 
             ### 安装说明
             1. 根据你的 Mac 芯片选择对应版本：
-               - Apple Silicon (M1/M2/M3): 下载 `AhaOKR-${{ steps.get_version.outputs.VERSION }}-arm64.dmg`
-               - Intel Mac: 下载 `AhaOKR-${{ steps.get_version.outputs.VERSION }}-x64.dmg`
+               - Apple Silicon (M1/M2/M3): 下载 `AhaOKR-*-arm64.dmg`
+               - Intel Mac: 下载 `AhaOKR-*-x64.dmg` 或 `AhaOKR-*-x64.zip`
             2. 打开 dmg 文件，将应用拖到 Applications 文件夹
             3. 首次打开可能需要到 系统设置 > 隐私与安全性 中允许运行
 
@@ -55,5 +60,6 @@ jobs:
             - macOS 10.12 或更高版本
           draft: false
           prerelease: false
+          fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
