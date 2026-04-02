@@ -56,8 +56,6 @@
       "category": "public.app-category.productivity",
       "hardenedRuntime": false,
       "gatekeeperAssess": false,
-      "sign": false,
-      "identity": null,
       "target": [
         {
           "target": "dmg",
@@ -69,7 +67,6 @@
       ]
     },
     "dmg": {
-      "sign": false,
       "title": "AhaOKR ${version}",
       "icon": false
     }

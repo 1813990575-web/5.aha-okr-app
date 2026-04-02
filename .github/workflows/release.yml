@@ -22,7 +22,6 @@ jobs:
       - run: npx electron-builder --mac dmg --arm64 --publish never
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
-      - run: codesign --deep --force --sign "-" "release/mac-arm64/AhaOKR.app"
       - uses: actions/upload-artifact@v4
         with:
           name: arm64-dmg
@@ -41,7 +40,6 @@ jobs:
       - run: npx electron-builder --mac dmg --x64 --publish never
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
-      - run: codesign --deep --force --sign "-" "release/mac/AhaOKR.app"
       - uses: actions/upload-artifact@v4
         with:
           name: x64-dmg
