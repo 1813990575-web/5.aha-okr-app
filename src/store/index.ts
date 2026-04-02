@@ -125,20 +125,20 @@ let pendingSave = false
 function saveToFile(): void {
   // 标记有待保存的数据
   pendingSave = true
-  
+
   // 清除之前的定时器
   if (saveTimeout) {
     clearTimeout(saveTimeout)
   }
-  
-  // 延迟 300ms 执行保存，实现防抖
+
+  // 延迟 500ms 执行保存，实现防抖（为 Intel 慢速磁盘预留时间）
   saveTimeout = setTimeout(() => {
     if (!pendingSave) return
-    
+
     try {
       const filePath = dataFilePath || getDataFilePath()
       const data = JSON.stringify(memoryCache, null, 2)
-      
+
       // 异步写入，避免阻塞主线程
       fs.writeFile(filePath, data, { encoding: 'utf-8' }, (err) => {
         if (err) {
@@ -147,13 +147,37 @@ function saveToFile(): void {
           console.log('[Store] 数据异步保存成功:', filePath)
         }
       })
-      
+
       pendingSave = false
     } catch (error) {
       console.error('[Store] 准备保存数据失败:', error)
       pendingSave = false
     }
-  }, 300)
+  }, 500)
+}
+
+/**
+ * 强制同步保存数据到文件
+ * 用于应用退出前确保数据写入磁盘
+ */
+export function forceSyncSave(): void {
+  try {
+    // 清除待执行的异步保存
+    if (saveTimeout) {
+      clearTimeout(saveTimeout)
+      saveTimeout = null
+    }
+
+    const filePath = dataFilePath || getDataFilePath()
+    const data = JSON.stringify(memoryCache, null, 2)
+
+    // 同步写入，确保数据立即落盘
+    fs.writeFileSync(filePath, data, { encoding: 'utf-8' })
+    console.log('[Store] 强制同步保存成功:', filePath)
+    pendingSave = false
+  } catch (error) {
+    console.error('[Store] 强制同步保存失败:', error)
+  }
 }
 
 /**

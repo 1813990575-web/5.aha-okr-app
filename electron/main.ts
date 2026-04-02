@@ -36,6 +36,8 @@ import {
   toggleDailyTaskStatus,
   unlinkDailyTasksByGoalId,
   getTodayString,
+  // 强制保存
+  forceSyncSave,
 } from '../src/store/index'
 
 let mainWindow: BrowserWindow | null = null
@@ -341,4 +343,11 @@ app.on('activate', () => {
   if (mainWindow === null) {
     createWindow()
   }
+})
+
+// 应用退出前强制保存数据（解决 Intel Mac 数据丢失问题）
+app.on('will-quit', (event) => {
+  console.log('[Main] 应用即将退出，执行强制保存...')
+  forceSyncSave()
+  console.log('[Main] 强制保存完成')
 })
