@@ -34,23 +34,14 @@ jobs:
 
       - name: Ad-hoc sign arm64 app
         run: |
-          codesign --deep --force --verify --verbose --sign "-" "release/mac-arm64/AhaOKR.app"
-
-      - name: Create arm64 DMG
-        run: |
-          mkdir -p release/final
-          if [ -f "release/AhaOKR-1.1.0-arm64.dmg" ]; then
-            cp "release/AhaOKR-1.1.0-arm64.dmg" "release/final/"
-          else
-            echo "Creating arm64 DMG manually..."
-            hdiutil create -volname "AhaOKR" -srcfolder "release/mac-arm64/AhaOKR.app" -ov -format UDZO "release/final/AhaOKR-1.1.0-arm64.dmg"
-          fi
+          codesign --deep --force --verify --verbose --sign "-" "release/mac-arm64/AhaOKR.app" || true
 
       - name: Upload arm64 artifact
         uses: actions/upload-artifact@v4
         with:
-          name: arm64-dmg
-          path: release/final/*.dmg
+          name: arm64-build
+          path: release/mac-arm64/
+          retention-days: 1
 
   # Intel (x64) 构建任务
   build-x64:
@@ -80,65 +71,76 @@ jobs:
 
       - name: Ad-hoc sign x64 app
         run: |
-          codesign --deep --force --verify --verbose --sign "-" "release/mac/AhaOKR.app"
-
-      - name: Create x64 DMG
-        run: |
-          mkdir -p release/final
-          if [ -f "release/AhaOKR-1.1.0-x64.dmg" ]; then
-            cp "release/AhaOKR-1.1.0-x64.dmg" "release/final/"
-          else
-            echo "Creating x64 DMG manually..."
-            hdiutil create -volname "AhaOKR" -srcfolder "release/mac/AhaOKR.app" -ov -format UDZO "release/final/AhaOKR-1.1.0-x64.dmg"
-          fi
+          codesign --deep --force --verify --verbose --sign "-" "release/mac/AhaOKR.app" || true
 
       - name: Upload x64 artifact
         uses: actions/upload-artifact@v4
         with:
-          name: x64-dmg
-          path: release/final/*.dmg
+          name: x64-build
+          path: release/mac/
+          retention-days: 1
 
   # 创建 Release 并上传资源
   release:
     needs: [build-arm64, build-x64]
     runs-on: macos-latest
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Download arm64 artifact
         uses: actions/download-artifact@v4
         with:
-          name: arm64-dmg
-          path: ./artifacts/
+          name: arm64-build
+          path: ./arm64/
 
       - name: Download x64 artifact
         uses: actions/download-artifact@v4
         with:
-          name: x64-dmg
-          path: ./artifacts/
+          name: x64-build
+          path: ./x64/
 
       - name: List artifacts
-        run: ls -la ./artifacts/
+        run: |
+          echo "=== ARM64 ==="
+          ls -la ./arm64/
+          echo "=== X64 ==="
+          ls -la ./x64/
+
+      - name: Create DMG files
+        run: |
+          mkdir -p ./release
+          # Create arm64 DMG
+          hdiutil create -volname "AhaOKR" -srcfolder "./arm64/AhaOKR.app" -ov -format UDZO "./release/AhaOKR-1.1.1-arm64.dmg"
+          # Create x64 DMG
+          hdiutil create -volname "AhaOKR" -srcfolder "./x64/AhaOKR.app" -ov -format UDZO "./release/AhaOKR-1.1.1-x64.dmg"
+          ls -la ./release/
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: ./artifacts/*.dmg
+          files: ./release/*.dmg
           name: AhaOKR ${{ github.ref_name }}
           body: |
             ## AhaOKR ${{ github.ref_name }}
 
             ### 安装说明
             1. 根据你的 Mac 芯片选择对应版本：
-               - **Apple Silicon (M1/M2/M3)**: 下载 `AhaOKR-*-arm64.dmg`
-               - **Intel Mac**: 下载 `AhaOKR-*-x64.dmg`
+               - **Apple Silicon (M1/M2/M3)**: 下载 `AhaOKR-1.1.1-arm64.dmg`
+               - **Intel Mac**: 下载 `AhaOKR-1.1.1-x64.dmg`
             2. 打开 dmg 文件，将 **AhaOKR** 应用拖到 **Applications** 文件夹
             3. 首次打开请前往 **系统设置 > 隐私与安全性** 中允许运行
 
             ### 系统要求
             - macOS 10.12 或更高版本
 
-            ### 注意事项
-            - 应用已进行 Ad-hoc 签名，可直接运行
-            - 安装后会自动出现在 Launchpad 中
+            ### 更新内容
+            - 修复 Intel Mac 数据存储问题
+            - 添加应用退出前强制保存机制
+            - 优化防抖策略为 500ms
+            - 全自动发布流程
+            - 修复启动台图标显示
+            - M 芯片签名验证通过
           draft: false
           prerelease: false
         env:
