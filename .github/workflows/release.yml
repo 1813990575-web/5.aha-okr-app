@@ -13,26 +13,17 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-
       - run: npm ci
-
       - run: npm run build
-
-      - name: Build arm64
-        run: npx electron-builder --mac dmg --arm64 --publish never
+      - run: npx electron-builder --mac dmg --arm64 --publish never
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
-
-      - name: Sign app
-        run: codesign --deep --force --sign "-" "release/mac-arm64/AhaOKR.app"
-
-      - name: Upload arm64 dmg
-        uses: actions/upload-artifact@v4
+      - run: codesign --deep --force --sign "-" "release/mac-arm64/AhaOKR.app"
+      - uses: actions/upload-artifact@v4
         with:
           name: arm64-dmg
           path: release/*.dmg
@@ -41,26 +32,17 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-
       - run: npm ci
-
       - run: npm run build
-
-      - name: Build x64
-        run: npx electron-builder --mac dmg --x64 --publish never
+      - run: npx electron-builder --mac dmg --x64 --publish never
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
-
-      - name: Sign app
-        run: codesign --deep --force --sign "-" "release/mac/AhaOKR.app"
-
-      - name: Upload x64 dmg
-        uses: actions/upload-artifact@v4
+      - run: codesign --deep --force --sign "-" "release/mac/AhaOKR.app"
+      - uses: actions/upload-artifact@v4
         with:
           name: x64-dmg
           path: release/*.dmg
@@ -72,22 +54,14 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: ./artifacts
-
-      - name: List artifacts
-        run: find ./artifacts -type f -name "*.dmg"
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
+      - run: find ./artifacts -type f -name "*.dmg"
+      - uses: softprops/action-gh-release@v1
         with:
           files: ./artifacts/**/*.dmg
           name: AhaOKR ${{ github.ref_name }}
           body: |
             ## AhaOKR ${{ github.ref_name }}
-
-            ### 安装说明
-            - **Apple Silicon (M1/M2/M3)**: 下载 `AhaOKR-*-arm64.dmg`
+            - **Apple Silicon**: 下载 `AhaOKR-*-arm64.dmg`
             - **Intel Mac**: 下载 `AhaOKR-*-x64.dmg`
-          draft: false
-          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
