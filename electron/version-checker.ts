@@ -2,7 +2,7 @@ import { dialog, shell } from 'electron'
 import https from 'https'
 
 // 当前应用版本号（与 package.json 保持一致）
-const CURRENT_VERSION = '1.0.4'
+const CURRENT_VERSION = '1.1.0'
 
 // GitHub Raw URL 上的 version.json 地址
 const VERSION_URL = 'https://raw.githubusercontent.com/1813990575-web/5.Aha-OKR/main/version.json'

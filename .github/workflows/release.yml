@@ -6,60 +6,140 @@ on:
       - 'v*'
 
 jobs:
-  build-and-release:
+  # Apple Silicon (arm64) 构建任务
+  build-arm64:
     runs-on: macos-latest
-    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-      
+
       - name: Install dependencies
         run: npm ci
-      
-      - name: Build application
-        run: npm run electron:build
+
+      - name: Build for arm64
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      - name: Package arm64
+        run: npx electron-builder --mac --arm64 --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: Get version from package.json
-        id: get_version
+
+      - name: Ad-hoc sign arm64 app
         run: |
-          VERSION=$(node -p "require('./package.json').version")
-          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-          echo "TAG_NAME=v$VERSION" >> $GITHUB_OUTPUT
-      
-      - name: Check build outputs
+          codesign --deep --force --verify --verbose --sign "-" "release/mac-arm64/AhaOKR.app"
+
+      - name: Create arm64 DMG
         run: |
-          ls -la ./release/
-      
-      - name: Create Release and Upload Assets
+          mkdir -p release/final
+          if [ -f "release/AhaOKR-1.1.0-arm64.dmg" ]; then
+            cp "release/AhaOKR-1.1.0-arm64.dmg" "release/final/"
+          else
+            echo "Creating arm64 DMG manually..."
+            hdiutil create -volname "AhaOKR" -srcfolder "release/mac-arm64/AhaOKR.app" -ov -format UDZO "release/final/AhaOKR-1.1.0-arm64.dmg"
+          fi
+
+      - name: Upload arm64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: arm64-dmg
+          path: release/final/*.dmg
+
+  # Intel (x64) 构建任务
+  build-x64:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build for x64
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      - name: Package x64
+        run: npx electron-builder --mac --x64 --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Ad-hoc sign x64 app
+        run: |
+          codesign --deep --force --verify --verbose --sign "-" "release/mac/AhaOKR.app"
+
+      - name: Create x64 DMG
+        run: |
+          mkdir -p release/final
+          if [ -f "release/AhaOKR-1.1.0-x64.dmg" ]; then
+            cp "release/AhaOKR-1.1.0-x64.dmg" "release/final/"
+          else
+            echo "Creating x64 DMG manually..."
+            hdiutil create -volname "AhaOKR" -srcfolder "release/mac/AhaOKR.app" -ov -format UDZO "release/final/AhaOKR-1.1.0-x64.dmg"
+          fi
+
+      - name: Upload x64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: x64-dmg
+          path: release/final/*.dmg
+
+  # 创建 Release 并上传资源
+  release:
+    needs: [build-arm64, build-x64]
+    runs-on: macos-latest
+    steps:
+      - name: Download arm64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: arm64-dmg
+          path: ./artifacts/
+
+      - name: Download x64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: x64-dmg
+          path: ./artifacts/
+
+      - name: List artifacts
+        run: ls -la ./artifacts/
+
+      - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: |
-            ./release/AhaOKR-*-arm64.dmg
-            ./release/AhaOKR-*-x64.dmg
-            ./release/AhaOKR-*-x64.zip
+          files: ./artifacts/*.dmg
           name: AhaOKR ${{ github.ref_name }}
           body: |
             ## AhaOKR ${{ github.ref_name }}
 
             ### 安装说明
             1. 根据你的 Mac 芯片选择对应版本：
-               - Apple Silicon (M1/M2/M3): 下载 `AhaOKR-*-arm64.dmg`
-               - Intel Mac: 下载 `AhaOKR-*-x64.dmg` 或 `AhaOKR-*-x64.zip`
-            2. 打开 dmg 文件，将应用拖到 Applications 文件夹
-            3. 首次打开可能需要到 系统设置 > 隐私与安全性 中允许运行
+               - **Apple Silicon (M1/M2/M3)**: 下载 `AhaOKR-*-arm64.dmg`
+               - **Intel Mac**: 下载 `AhaOKR-*-x64.dmg`
+            2. 打开 dmg 文件，将 **AhaOKR** 应用拖到 **Applications** 文件夹
+            3. 首次打开请前往 **系统设置 > 隐私与安全性** 中允许运行
 
             ### 系统要求
             - macOS 10.12 或更高版本
+
+            ### 注意事项
+            - 应用已进行 Ad-hoc 签名，可直接运行
+            - 安装后会自动出现在 Launchpad 中
           draft: false
           prerelease: false
-          fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

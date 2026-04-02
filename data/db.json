@@ -1,16 +1,26 @@
 {
   "items": [
     {
-      "id": "309b40a2-ec8b-4286-9317-761ea0480d77",
+      "id": "c8536b49-4384-4a25-820c-c0d7a4169dca",
+      "type": "O",
+      "parent_id": null,
+      "title": "使用",
+      "content": "",
+      "status": 0,
+      "sort_order": 0,
+      "created_at": "2026-04-01T19:54:28.780Z",
+      "updated_at": "2026-04-01T19:54:31.519Z"
+    },
+    {
+      "id": "ffeb0b00-2089-4392-9463-cb9075354bcd",
       "type": "O",
       "parent_id": null,
       "title": "你好",
       "content": "",
       "status": 0,
-      "sort_order": 5,
-      "created_at": "2026-04-01T08:14:02.395Z",
-      "updated_at": "2026-04-01T08:19:37.045Z",
-      "color": "olive"
+      "sort_order": 1,
+      "created_at": "2026-04-01T19:54:24.774Z",
+      "updated_at": "2026-04-01T19:54:27.660Z"
     },
     {
       "id": "obj-1",
@@ -19,7 +29,7 @@
       "title": "发布 vibe coding 视频",
       "content": "制作并发布一系列关于 vibe coding 的教学视频",
       "status": 0,
-      "sort_order": 40,
+      "sort_order": 46,
       "total_focus_time": 0,
       "created_at": "2026-03-31T02:09:31.000Z",
       "updated_at": "2026-04-01T08:13:42.309Z",
@@ -180,31 +190,39 @@
       "created_at": "2026-03-31T04:23:08.000Z",
       "updated_at": "2026-04-01T03:29:14.736Z",
       "color": null
-    },
-    {
-      "id": "f709caeb-da77-433c-a749-845200d88639",
-      "type": "KR",
-      "parent_id": "309b40a2-ec8b-4286-9317-761ea0480d77",
-      "title": "你好",
-      "content": "",
-      "status": 0,
-      "sort_order": 0,
-      "created_at": "2026-04-01T08:22:44.005Z",
-      "updated_at": "2026-04-01T08:22:46.517Z"
-    },
-    {
-      "id": "4a46056b-fa1f-40b4-87af-6728f0413368",
-      "type": "KR",
-      "parent_id": "309b40a2-ec8b-4286-9317-761ea0480d77",
-      "title": "你好",
-      "content": "",
-      "status": 0,
-      "sort_order": 1,
-      "created_at": "2026-04-01T08:22:46.528Z",
-      "updated_at": "2026-04-01T08:22:49.575Z"
     }
   ],
   "dailyTasks": [
+    {
+      "content": "我如何使用",
+      "isDone": false,
+      "date": "2026-04-02",
+      "linkedGoalId": null,
+      "origin": "manual",
+      "id": "8ee49c87-d6b1-4234-95ca-dc741d1797bf",
+      "created_at": "2026-04-02T03:01:33.402Z",
+      "updated_at": "2026-04-02T03:01:33.402Z"
+    },
+    {
+      "content": "阶跃",
+      "isDone": false,
+      "date": "2026-04-02",
+      "linkedGoalId": null,
+      "origin": "manual",
+      "id": "740c0b7f-6d3e-47d8-9681-fce176556802",
+      "created_at": "2026-04-01T19:42:39.699Z",
+      "updated_at": "2026-04-01T19:42:39.699Z"
+    },
+    {
+      "content": "Google devtools",
+      "isDone": false,
+      "date": "2026-04-02",
+      "linkedGoalId": null,
+      "origin": "manual",
+      "id": "3ba3cf29-0083-43ba-9659-4eb679d1ec0d",
+      "created_at": "2026-04-01T19:42:27.163Z",
+      "updated_at": "2026-04-01T19:42:27.163Z"
+    },
     {
       "content": "应用 3: 笔记管理应用",
       "isDone": false,

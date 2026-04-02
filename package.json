@@ -1,6 +1,6 @@
 {
   "name": "aha-okr",
-  "version": "1.0.4",
+  "version": "1.1.0",
   "description": "Aha OKR - macOS风格桌面应用",
   "main": "dist-electron/main.js",
   "scripts": {
