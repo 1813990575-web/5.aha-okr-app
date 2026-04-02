@@ -9,11 +9,8 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  build-arm64:
     runs-on: macos-latest
-    strategy:
-      matrix:
-        arch: [arm64, x64]
     steps:
       - uses: actions/checkout@v4
 
@@ -26,52 +23,70 @@ jobs:
 
       - run: npm run build
 
-      - name: Build ${{ matrix.arch }}
-        run: npx electron-builder --mac ${{ matrix.arch }} --publish never
+      - name: Build arm64
+        run: npx electron-builder --mac dmg --arm64 --publish never
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
       - name: Sign app
-        run: |
-          APP_PATH="release/mac${{ matrix.arch == 'arm64' && '-arm64' || '' }}/AhaOKR.app"
-          codesign --deep --force --sign "-" "$APP_PATH"
+        run: codesign --deep --force --sign "-" "release/mac-arm64/AhaOKR.app"
 
-      - name: Upload artifact
+      - name: Upload arm64 dmg
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.arch }}-build
-          path: release/*/
+          name: arm64-dmg
+          path: release/*.dmg
 
-  release:
-    needs: build
+  build-x64:
     runs-on: macos-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
 
-      - name: Create DMG files
-        run: |
-          mkdir -p final
-          # Create arm64 DMG
-          if [ -d "arm64-build/mac-arm64/AhaOKR.app" ]; then
-            hdiutil create -volname "AhaOKR" -srcfolder "arm64-build/mac-arm64/AhaOKR.app" -ov -format UDZO "final/AhaOKR-arm64.dmg"
-          fi
-          # Create x64 DMG
-          if [ -d "x64-build/mac/AhaOKR.app" ]; then
-            hdiutil create -volname "AhaOKR" -srcfolder "x64-build/mac/AhaOKR.app" -ov -format UDZO "final/AhaOKR-x64.dmg"
-          fi
-          ls -la final/
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - name: Build x64
+        run: npx electron-builder --mac dmg --x64 --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+
+      - name: Sign app
+        run: codesign --deep --force --sign "-" "release/mac/AhaOKR.app"
+
+      - name: Upload x64 dmg
+        uses: actions/upload-artifact@v4
+        with:
+          name: x64-dmg
+          path: release/*.dmg
+
+  release:
+    needs: [build-arm64, build-x64]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: List artifacts
+        run: find ./artifacts -type f -name "*.dmg"
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: final/*.dmg
+          files: ./artifacts/**/*.dmg
           name: AhaOKR ${{ github.ref_name }}
           body: |
             ## AhaOKR ${{ github.ref_name }}
 
             ### 安装说明
-            - Apple Silicon (M1/M2/M3): 下载 `AhaOKR-arm64.dmg`
-            - Intel Mac: 下载 `AhaOKR-x64.dmg`
+            - **Apple Silicon (M1/M2/M3)**: 下载 `AhaOKR-*-arm64.dmg`
+            - **Intel Mac**: 下载 `AhaOKR-*-x64.dmg`
           draft: false
           prerelease: false
         env:
