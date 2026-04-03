@@ -4,7 +4,7 @@ const path = require("path");
 const https = require("https");
 const crypto = require("crypto");
 const fs = require("fs");
-const CURRENT_VERSION = "1.0.2";
+const CURRENT_VERSION = "1.0.3";
 const VERSION_URL = "https://raw.githubusercontent.com/1813990575-web/5.Aha-OKR/main/version.json";
 function compareVersions(local, remote) {
   const localParts = local.split(".").map(Number);

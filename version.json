@@ -1,5 +1,5 @@
 {
-  "version": "1.0.2",
+  "version": "1.0.3",
   "downloadUrl": "https://github.com/1813990575-web/5.aha-okr-app/releases/latest",
-  "releaseNotes": "v1.0.2 更新内容：\n- 修复 Intel Mac 数据存储路径问题\n- 使用 Electron userData 目录保存数据\n- 修复应用签名问题"
+  "releaseNotes": "v1.0.3 更新内容：\n- UI优化和功能改进\n- 修复 TypeScript 编译错误\n- 优化组件性能"
 }
