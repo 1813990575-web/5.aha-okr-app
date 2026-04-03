@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react'
-import { Check, Trash2, Link2 } from 'lucide-react'
+import { Check, Trash2, Link2, CalendarArrowDown } from 'lucide-react'
 import type { DailyTask } from '../../store/index'
 
 interface TaskItemProps {
@@ -7,11 +7,13 @@ interface TaskItemProps {
   onToggle: (id: string) => void
   onDelete: (id: string) => void
   onUpdateContent?: (id: string, content: string) => void
+  onMoveToToday?: (id: string) => void
   linkedItemTitle?: string | null
   onClick?: () => void
   isHighlighted?: boolean
   isSelected?: boolean
   isLinked?: boolean
+  isPastDate?: boolean
 }
 
 export const TaskItem: React.FC<TaskItemProps> = ({
@@ -19,11 +21,13 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   onToggle,
   onDelete,
   onUpdateContent,
+  onMoveToToday,
   linkedItemTitle,
   onClick,
   isHighlighted,
   isSelected,
   isLinked,
+  isPastDate,
 }) => {
   // 判断是否为 OKR 派生项
   const isOkrDerived = task.origin === 'okr' || task.linkedGoalId
@@ -57,6 +61,13 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   const handleDelete = () => {
     console.log("[DIAG] Delete Triggered for task:", task.id)
     onDelete(task.id)
+    handleCloseContextMenu()
+  }
+
+  // 处理移至今日
+  const handleMoveToToday = () => {
+    console.log("[DIAG] Move to Today Triggered for task:", task.id)
+    onMoveToToday?.(task.id)
     handleCloseContextMenu()
   }
 
@@ -207,9 +218,19 @@ export const TaskItem: React.FC<TaskItemProps> = ({
       {/* 右键菜单 */}
       {showContextMenu && (
         <div
-          className="fixed z-50 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 min-w-[120px]"
+          className="fixed z-50 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 min-w-[140px]"
           style={{ left: contextMenuPos.x, top: contextMenuPos.y }}
         >
+          {/* 过去的日期显示"移至今日" */}
+          {isPastDate && onMoveToToday && (
+            <button
+              onClick={handleMoveToToday}
+              className="w-full px-4 py-2 text-left text-sm hover:bg-blue-50 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center gap-2"
+            >
+              <CalendarArrowDown className="w-4 h-4" />
+              <span>移至今日</span>
+            </button>
+          )}
           <button
             onClick={handleDelete}
             className="w-full px-4 py-2 text-left text-sm hover:bg-red-50 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 flex items-center gap-2"

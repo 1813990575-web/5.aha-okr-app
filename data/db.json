@@ -1,39 +1,6 @@
 {
   "items": [
     {
-      "id": "888b6bbd-d18f-4272-81e5-5d38b9dc8503",
-      "type": "O",
-      "parent_id": null,
-      "title": "hello",
-      "content": "",
-      "status": 0,
-      "sort_order": 0,
-      "created_at": "2026-04-02T04:21:13.900Z",
-      "updated_at": "2026-04-02T04:21:17.906Z"
-    },
-    {
-      "id": "c8536b49-4384-4a25-820c-c0d7a4169dca",
-      "type": "O",
-      "parent_id": null,
-      "title": "使用",
-      "content": "",
-      "status": 0,
-      "sort_order": 1,
-      "created_at": "2026-04-01T19:54:28.780Z",
-      "updated_at": "2026-04-01T19:54:31.519Z"
-    },
-    {
-      "id": "ffeb0b00-2089-4392-9463-cb9075354bcd",
-      "type": "O",
-      "parent_id": null,
-      "title": "你好",
-      "content": "",
-      "status": 0,
-      "sort_order": 2,
-      "created_at": "2026-04-01T19:54:24.774Z",
-      "updated_at": "2026-04-01T19:54:27.660Z"
-    },
-    {
       "id": "obj-1",
       "type": "O",
       "parent_id": null,
@@ -182,11 +149,11 @@
       "parent_id": "19dea078-4879-4255-b1cd-70d3d5bebb50",
       "title": "todo2",
       "content": "",
-      "status": 1,
+      "status": 0,
       "sort_order": 5,
       "total_focus_time": 0,
       "created_at": "2026-03-31T04:23:03.000Z",
-      "updated_at": "2026-03-31T13:37:42.022Z",
+      "updated_at": "2026-04-02T06:36:12.079Z",
       "color": null
     },
     {
@@ -204,6 +171,17 @@
     }
   ],
   "dailyTasks": [
+    {
+      "content": "todo2",
+      "isDone": false,
+      "date": "2026-04-02",
+      "linkedGoalId": "da58da62-7495-425f-9eff-e06294ebd6f9",
+      "origin": "okr",
+      "color": "#7C4AC7",
+      "id": "786c2a66-aa03-4afe-9144-added75ed63d",
+      "created_at": "2026-04-02T06:36:14.116Z",
+      "updated_at": "2026-04-02T06:36:14.116Z"
+    },
     {
       "content": "参？",
       "isDone": false,

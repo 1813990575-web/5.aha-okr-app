@@ -199,6 +199,29 @@ function App() {
     }
   }, [])
 
+  // 处理移至今日 - 将过去日期的任务移动到今天的日期
+  const handleMoveTaskToToday = useCallback(async (id: string) => {
+    console.log('[DIAG] App handleMoveTaskToToday called for id:', id)
+    try {
+      const todayKey = formatDateKey(new Date())
+      await window.electronAPI.dailyTasks.updateTask(id, { date: todayKey })
+      // 从当前列表移除（因为日期已改变）
+      setTasks(prev => prev.filter(task => task.id !== id))
+      console.log('[DIAG] Task moved to today:', id)
+    } catch (error) {
+      console.error('[App] 移至今日失败:', error)
+    }
+  }, [])
+
+  // 判断当前选中的日期是否为过去的日期
+  const isPastDate = useCallback(() => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const selected = new Date(selectedDate)
+    selected.setHours(0, 0, 0, 0)
+    return selected < today
+  }, [selectedDate])
+
   return (
     <SidebarThemeProvider>
       <DragProvider onDragEnd={handleDragEnd}>
@@ -213,8 +236,10 @@ function App() {
               onToggleTask={handleToggleTask}
               onDeleteTask={handleDeleteTask}
               onUpdateTaskContent={handleUpdateTaskContent}
+              onMoveTaskToToday={handleMoveTaskToToday}
               onSetActiveObjective={handleSetActiveObjective}
               highlightedTaskId={highlightedTaskId}
+              isPastDate={isPastDate()}
             />
           }
           rightPanel={<Timeline />}

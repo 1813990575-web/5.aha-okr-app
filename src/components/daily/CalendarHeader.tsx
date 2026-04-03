@@ -5,7 +5,7 @@ interface CalendarHeaderProps {
   selectedDate: Date
   onDateChange: (date: Date) => void
   onOpenDatePicker: () => void
-  hasContentForDate?: (date: Date) => boolean // 判断指定日期是否有内容
+  datesWithTasks?: Set<string> // 所有有任务的日期集合
 }
 
 /**
@@ -83,12 +83,12 @@ function formatDetailedDate(date: Date): string {
  * 获取周历数据（基于基准周，显示7天）
  * @param baseWeekDate 基准周日期（该周的某一天）
  * @param selectedDate 当前选中的日期
- * @param hasContentForDate 判断日期是否有内容的函数
+ * @param datesWithTasks 所有有任务的日期集合
  */
 function getWeekDays(
   baseWeekDate: Date,
   selectedDate: Date,
-  hasContentForDate?: (date: Date) => boolean
+  datesWithTasks?: Set<string>
 ): Array<{
   date: Date
   day: number
@@ -111,7 +111,8 @@ function getWeekDays(
     date.setDate(date.getDate() + i)
     const isSelected = formatDateKey(date) === formatDateKey(selectedDate)
     const isToday = formatDateKey(date) === formatDateKey(today)
-    const hasContent = hasContentForDate ? hasContentForDate(date) : false
+    const dateKey = formatDateKey(date)
+    const hasContent = datesWithTasks ? datesWithTasks.has(dateKey) : false
     days.push({
       date,
       day: date.getDate(),
@@ -128,7 +129,7 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
   selectedDate,
   onDateChange,
   onOpenDatePicker,
-  hasContentForDate,
+  datesWithTasks,
 }) => {
   const [dayProgress, setDayProgress] = useState(getDayProgress(selectedDate))
 
@@ -171,7 +172,7 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
   }
 
   const isToday = formatDateKey(selectedDate) === formatDateKey(new Date())
-  const weekDays = getWeekDays(baseWeekDate, selectedDate, hasContentForDate)
+  const weekDays = getWeekDays(baseWeekDate, selectedDate, datesWithTasks)
 
   return (
     <div>
@@ -246,10 +247,12 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
                 }`}>
                   {item.day}
                 </span>
-                {/* 内容指示点：有内容时显示黑色圆点（今天也不例外） */}
-                <span className={`w-1 h-1 rounded-full mt-0.5 ${
-                  item.hasContent ? 'bg-gray-800' : ''
-                }`}></span>
+                {/* 内容指示点：恒定占位，通过透明度控制显隐 */}
+                <span
+                  className={`w-1 h-1 rounded-full flex-shrink-0 mt-0.5 transition-opacity duration-200 ${
+                    item.hasContent ? 'bg-gray-400 opacity-100' : 'bg-transparent opacity-0'
+                  }`}
+                />
               </button>
             ))}
           </div>
@@ -263,27 +266,46 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
           </button>
         </div>
 
-        {/* 时间统计进度条 - 与周历共用白色底色，始终显示 */}
-        <div className="flex items-center gap-3 px-4 py-1.5 pb-3">
-          {/* 左侧：已度过百分比 */}
-          <span className="text-[13px] text-gray-500 font-semibold w-[40px]">
+        {/* 时间统计进度条 - 深岩灰色质感 */}
+        <div className="flex items-center gap-2 px-4 py-1.5 pb-3">
+          {/* 左侧：已度过百分比 - 灰色字 */}
+          <span className="text-[14px] font-bold w-[44px] flex-shrink-0" style={{ color: '#94A3B8' }}>
             {dayProgress.progress}%
           </span>
 
-          {/* 中间：进度条 */}
-          <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+          {/* 中间：进度条 - 极简灰轨道 + 灰蓝渐变填充 + 呼吸动画 */}
+          <div
+            className="flex-1 h-2 rounded-full overflow-hidden"
+            style={{
+              background: '#E2E8F0',
+            }}
+          >
             <div
-              className="h-full bg-gray-500 rounded-full transition-all duration-300"
-              style={{ width: `${dayProgress.progress}%` }}
+              className="h-full rounded-full transition-all duration-300 progress-bar-pulse"
+              style={{
+                width: `${dayProgress.progress}%`,
+                background: 'linear-gradient(to right, #718096 0%, #2D3748 100%)',
+              }}
             />
           </div>
 
-          {/* 右侧：剩余时间 */}
-          <span className="text-[13px] text-gray-500 font-semibold w-[50px] text-right">
+          {/* 右侧：剩余时间 - 加深字体颜色 */}
+          <span className="text-[14px] font-bold w-[52px] text-right flex-shrink-0" style={{ color: '#475569' }}>
             {dayProgress.remainingHours}h
           </span>
         </div>
       </div>
+
+      {/* 进度条呼吸动画样式 */}
+      <style>{`
+        @keyframes progress-pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.8; }
+        }
+        .progress-bar-pulse {
+          animation: progress-pulse 4s ease-in-out infinite;
+        }
+      `}</style>
     </div>
   )
 }

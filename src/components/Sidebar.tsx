@@ -129,7 +129,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeObjective: externalActiv
   }
 
   // 处理进度条切换
-  const handleViewModeChange = (mode: string) => {
+  const [sliderPercentage, setSliderPercentage] = useState(0)
+  
+  // 滑块风格切换状态（临时实验室功能）
+  const [sliderStyle, setSliderStyle] = useState<'bead' | 'pill'>('bead')
+  
+  const handleViewModeChange = (mode: string, percentage: number) => {
     const modeMap: Record<string, ResetLevel> = {
       'objectives': 'objectives',
       'key-results': 'keyresults',
@@ -137,7 +142,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeObjective: externalActiv
     }
     const resetLevel = modeMap[mode] || 'objectives'
     resetExpandedState(resetLevel)
+    setSliderPercentage(percentage)
   }
+
+  // 根据百分比获取标题文案
+  const getBreadcrumbText = () => {
+    if (sliderPercentage <= 30) return { text: '目标', range: 'O' }
+    if (sliderPercentage <= 70) return { text: '目标 > 关键结果', range: 'O > KR' }
+    return { text: '目标 > 关键结果 > 待办', range: 'O > KR > DO' }
+  }
+
+  const breadcrumb = getBreadcrumbText()
 
   // 处理创建同级
   const handleCreateSibling = async (currentId: string) => {
@@ -217,22 +232,28 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeObjective: externalActiv
       }}
     >
       {/* 可拖拽的上边栏区域 */}
-      <div className="app-drag-region flex-shrink-0">
+      <div className="app-drag-region flex-shrink-0 px-3">
         <div className="traffic-light-space" />
         <SegmentedControl
           defaultValue="objectives"
           onChange={handleViewModeChange}
+          sliderStyle={sliderStyle}
         />
       </div>
 
       <nav ref={navRef} className="flex-1 px-3 overflow-y-auto scrollbar-hide hover:scrollbar-show">
         <div className="mt-2">
           <div className="flex items-center justify-between px-3 py-2">
-            <div
-              className="text-xs font-semibold uppercase tracking-wider transition-colors duration-300"
-              style={{ color: themeConfig.isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.4)' }}
-            >
-              目标目录
+            <div className="flex items-center gap-2">
+              {/* 面包屑标题 - 无动画即时切换 */}
+              <div
+                className="text-xs font-semibold uppercase tracking-wider"
+                style={{ 
+                  color: themeConfig.isDark ? 'rgba(255,255,255,0.6)' : 'rgba(74, 78, 105, 0.8)',
+                }}
+              >
+                {breadcrumb.text}
+              </div>
             </div>
             <button
               onClick={() => handleCreateObjective()}
@@ -281,6 +302,27 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeObjective: externalActiv
       >
         <div className="mb-2">
           <SidebarThemeSelector />
+        </div>
+
+        {/* 滑动条风格实验室 - 临时切换功能 */}
+        <div className="flex items-center justify-between px-2 py-2 mb-2 rounded-lg bg-gray-100/50 dark:bg-gray-800/50">
+          <span className="text-[11px] text-gray-500 dark:text-gray-400">滑块风格</span>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setSliderStyle('bead')}
+              className={`p-1.5 rounded transition-all ${sliderStyle === 'bead' ? 'bg-white dark:bg-gray-700 shadow-sm' : 'hover:bg-gray-200/50 dark:hover:bg-gray-700/50'}`}
+              title="拟物圆珠"
+            >
+              <div className="w-3 h-3 rounded-full bg-gradient-to-br from-gray-300 to-gray-500" />
+            </button>
+            <button
+              onClick={() => setSliderStyle('pill')}
+              className={`p-1.5 rounded transition-all ${sliderStyle === 'pill' ? 'bg-white dark:bg-gray-700 shadow-sm' : 'hover:bg-gray-200/50 dark:hover:bg-gray-700/50'}`}
+              title="玻璃药片"
+            >
+              <div className="w-4 h-2 rounded-sm bg-gradient-to-r from-gray-300 to-gray-500" />
+            </button>
+          </div>
         </div>
 
         <div

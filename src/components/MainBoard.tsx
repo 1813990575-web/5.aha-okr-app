@@ -15,8 +15,10 @@ interface MainBoardProps {
   onToggleTask: (id: string) => void
   onDeleteTask: (id: string) => void
   onUpdateTaskContent?: (id: string, content: string) => void
+  onMoveTaskToToday?: (id: string) => void
   onSetActiveObjective?: (itemId: string, shouldScroll?: boolean) => void
   highlightedTaskId?: string | null
+  isPastDate?: boolean
 }
 
 export const MainBoard: React.FC<MainBoardProps> = ({
@@ -27,14 +29,17 @@ export const MainBoard: React.FC<MainBoardProps> = ({
   onToggleTask,
   onDeleteTask,
   onUpdateTaskContent,
+  onMoveTaskToToday,
   onSetActiveObjective,
   highlightedTaskId,
+  isPastDate,
 }) => {
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false)
   const [items, setItems] = useState<Item[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+  const [datesWithTasks, setDatesWithTasks] = useState<Set<string>>(new Set())
 
   // 加载 OKR 数据（用于显示关联项标题）
   const loadItems = useCallback(async () => {
@@ -43,15 +48,36 @@ export const MainBoard: React.FC<MainBoardProps> = ({
       setItems(allItems)
       setIsLoading(false)
     } catch (error) {
-      console.error('加载 OKR 数据失败:', error)
       setIsLoading(false)
+    }
+  }, [])
+
+  // 加载所有任务日期（用于日历圆点标记）
+  const loadAllTaskDates = useCallback(async () => {
+    try {
+      const allTasks = await window.electronAPI.dailyTasks.getAllTasks()
+      const datesSet = new Set<string>()
+      allTasks.forEach((task: DailyTask) => {
+        if (task.date) {
+          datesSet.add(task.date)
+        }
+      })
+      setDatesWithTasks(datesSet)
+    } catch (error) {
+      // 静默处理错误
     }
   }, [])
 
   // 初始加载
   useEffect(() => {
     loadItems()
-  }, [loadItems])
+    loadAllTaskDates()
+  }, [loadItems, loadAllTaskDates])
+
+  // 当任务变化时刷新日期集合
+  useEffect(() => {
+    loadAllTaskDates()
+  }, [tasks, loadAllTaskDates])
 
   // 处理创建待办
   const handleCreateTask = async (content: string) => {
@@ -139,12 +165,6 @@ export const MainBoard: React.FC<MainBoardProps> = ({
     }
   }
 
-  // 判断指定日期是否有任务
-  const hasContentForDate = useCallback((date: Date) => {
-    const dateKey = date.toISOString().split('T')[0]
-    return tasks.some(task => task.date === dateKey)
-  }, [tasks])
-
   return (
     <DroppableMainBoard>
       {/* 日历 Header */}
@@ -152,7 +172,7 @@ export const MainBoard: React.FC<MainBoardProps> = ({
         selectedDate={selectedDate}
         onDateChange={onDateChange}
         onOpenDatePicker={() => setIsDatePickerOpen(true)}
-        hasContentForDate={hasContentForDate}
+        datesWithTasks={datesWithTasks}
       />
 
       {/* 日期选择器 */}
@@ -161,7 +181,7 @@ export const MainBoard: React.FC<MainBoardProps> = ({
         selectedDate={selectedDate}
         onSelect={onDateChange}
         onClose={() => setIsDatePickerOpen(false)}
-        hasContentForDate={hasContentForDate}
+        datesWithTasks={datesWithTasks}
       />
 
       {/* 错误提示 */}
@@ -196,11 +216,13 @@ export const MainBoard: React.FC<MainBoardProps> = ({
                   onToggle={handleToggleTask}
                   onDelete={handleDeleteTask}
                   onUpdateContent={onUpdateTaskContent}
+                  onMoveToToday={onMoveTaskToToday}
                   linkedItemTitle={title}
                   onClick={() => handleTaskClick(task)}
                   isHighlighted={highlightedTaskId === task.id}
                   isSelected={selectedTaskId === task.id}
                   isLinked={!!task.linkedGoalId}
+                  isPastDate={isPastDate}
                 />
               )
             })}

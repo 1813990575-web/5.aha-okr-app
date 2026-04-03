@@ -6,7 +6,7 @@ interface DatePickerProps {
   selectedDate: Date
   onSelect: (date: Date) => void
   onClose: () => void
-  hasContentForDate?: (date: Date) => boolean // 判断指定日期是否有内容
+  datesWithTasks?: Set<string> // 所有有任务的日期集合
 }
 
 /**
@@ -44,7 +44,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({
   selectedDate,
   onSelect,
   onClose,
-  hasContentForDate,
+  datesWithTasks,
 }) => {
   const [viewDate, setViewDate] = useState(new Date(selectedDate))
 
@@ -92,7 +92,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({
     const dateKey = formatDateKey(date)
     const isToday = dateKey === todayKey
     const isSelected = dateKey === selectedKey
-    const hasContent = hasContentForDate ? hasContentForDate(date) : false
+    const hasContent = datesWithTasks ? datesWithTasks.has(dateKey) : false
     days.push({
       day,
       isToday,
@@ -171,10 +171,12 @@ export const DatePicker: React.FC<DatePickerProps> = ({
                   `}>
                     {item.day}
                   </span>
-                  {/* 内容指示点：有内容时显示黑色圆点 */}
-                  <span className={`w-1 h-1 rounded-full mt-0.5 ${
-                    item.hasContent ? 'bg-gray-800' : ''
-                  }`}></span>
+                  {/* 内容指示点：恒定占位，通过透明度控制显隐 */}
+                  <span
+                    className={`w-1 h-1 rounded-full flex-shrink-0 mt-0.5 transition-opacity duration-200 ${
+                      item.hasContent ? 'bg-gray-400 opacity-100' : 'bg-transparent opacity-0'
+                    }`}
+                  />
                 </button>
               )}
             </div>
