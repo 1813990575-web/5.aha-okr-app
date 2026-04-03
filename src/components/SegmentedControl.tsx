@@ -23,7 +23,6 @@ const SYNC_EASE = 'cubic-bezier(0.4, 0, 0.2, 1)'
 const TRANSITION_DURATION = '400ms'
 
 // 烟熏紫灰主题 - 半透明低明度
-const SMOKE_GRAY = 'rgba(74, 78, 105, 0.4)'
 const SMOKE_GLOW = 'rgba(74, 78, 105, 0.15)'
 
 export const SegmentedControl: React.FC<SegmentedControlProps> = ({
@@ -36,14 +35,6 @@ export const SegmentedControl: React.FC<SegmentedControlProps> = ({
     const index = options.findIndex((opt) => opt.id === defaultValue)
     return index >= 0 ? index : 0
   })
-  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
-
-  // 计算百分比位置 (0-100)
-  const percentage = useMemo(() => {
-    if (options.length <= 1) return 0
-    return (activeIndex / (options.length - 1)) * 100
-  }, [activeIndex, options.length])
-
   const handleClick = useCallback((index: number) => {
     setActiveIndex(index)
     const newPercentage = (index / (options.length - 1)) * 100
@@ -53,7 +44,6 @@ export const SegmentedControl: React.FC<SegmentedControlProps> = ({
   // 几何比例 - 根据模式独立调整
   // 圆点视觉尺寸：6px
   const DOT_SIZE = 6
-  const DOT_HOVER_SIZE = 8
   // 圆点点击热区：40px（保持不变）
   const DOT_HIT_AREA = 40
   
