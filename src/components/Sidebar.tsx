@@ -49,7 +49,7 @@ const TreeToggleTriangle: React.FC<{ expanded: boolean }> = ({ expanded }) => (
 const SIDEBAR_ROW_LAYOUT = {
   rowVerticalPaddingClass: {
     1: 'py-2.5',
-    2: 'py-2',
+    2: 'py-3',
     3: 'py-2',
   },
   rowGapClass: 'gap-2',
