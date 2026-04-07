@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowRight, Circle, Square, Triangle, Plus, Trash2, CalendarPlus } from 'lucide-react'
+import { ArrowRight, Check, Circle, Square, Triangle, Plus, Trash2, CalendarPlus } from 'lucide-react'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useDndMonitor } from '@dnd-kit/core'
@@ -852,7 +852,9 @@ const ObjectiveItem: React.FC<ObjectiveItemProps> = ({
                 }}
               >
               {item.status === 1 ? (
-                <Circle className="h-4 w-4" fill="currentColor" strokeWidth={0} />
+                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[#9ca3af]">
+                  <Check className="h-2.5 w-2.5 text-white" strokeWidth={3} />
+                </span>
               ) : (
                 <Circle className="h-4 w-4" strokeWidth={1.7} />
                 )}

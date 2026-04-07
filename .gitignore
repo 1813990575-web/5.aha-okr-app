@@ -6,8 +6,10 @@ yarn-error.log*
 
 # Build output
 dist/
+dist-electron/
 build/
 out/
+.vite/
 
 # Environment variables
 .env
@@ -36,3 +38,6 @@ logs/
 # Release directory
 release/
 release-electron/
+
+# Runtime app data
+data/
