@@ -1,11 +1,12 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronDown, ChevronRight, Circle, Triangle, Plus, Trash2, CalendarPlus } from 'lucide-react'
+import { ArrowRight, Circle, Square, Triangle, Plus, Trash2, CalendarPlus } from 'lucide-react'
+import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import { useDndMonitor } from '@dnd-kit/core'
 import { SegmentedControl } from './SegmentedControl'
-import { SidebarThemeSelector } from './SidebarThemeSelector'
-import { VersionDisplay } from './VersionDisplay'
 import { useSidebarTheme } from '../contexts/SidebarThemeContext'
-import { useDatabase, type ResetLevel } from '../hooks/useDatabase'
+import { useDatabase, type ResetLevel, type ReorderPreviewPosition } from '../hooks/useDatabase'
 import { DraggableTodoItem } from './dnd/DraggableTodoItem'
 
 // UI 展示用的 ObjectiveItem 接口
@@ -21,26 +22,130 @@ interface ObjectiveItemUI {
   status?: number
 }
 
+const ObjectiveContainerIcon: React.FC<{ color: string }> = ({ color }) => (
+  <svg viewBox="0 0 24 24" className="h-[13px] w-[13px]" aria-hidden="true">
+    <path
+      d="M3.8 7.8c0-1 .8-1.8 1.8-1.8h4.1c.5 0 1 .2 1.4.6l1.1 1.1c.2.2.4.3.7.3h5.6c1 0 1.8.8 1.8 1.8v6.6c0 1-.8 1.8-1.8 1.8H5.6c-1 0-1.8-.8-1.8-1.8V7.8Z"
+      fill={color}
+    />
+    <path
+      d="M4.6 9.8c0-.5.4-.9.9-.9h12.9c.5 0 .9.4.9.9v.8H4.6v-.8Zm0 1.9h14.7v4.4c0 .5-.4.9-.9.9H5.5c-.5 0-.9-.4-.9-.9v-4.4Z"
+      fill="rgba(255,255,255,0.94)"
+    />
+  </svg>
+)
+
+const TreeToggleTriangle: React.FC<{ expanded: boolean }> = ({ expanded }) => (
+  <svg
+    viewBox="0 0 12 12"
+    className={`h-3 w-3 transition-transform duration-200 ${expanded ? 'rotate-0' : '-rotate-90'}`}
+    style={{ transformOrigin: '50% 50%' }}
+    aria-hidden="true"
+  >
+    <path d="M2.2 3.1 6 9 9.8 3.1Z" fill="currentColor" />
+  </svg>
+)
+
+const SIDEBAR_ROW_LAYOUT = {
+  rowVerticalPaddingClass: {
+    1: 'py-2.5',
+    2: 'py-2',
+    3: 'py-2',
+  },
+  rowGapClass: 'gap-2',
+  containerMarginLeft: {
+    1: 0,
+    2: 18,
+    3: 52,
+  },
+  containerPaddingLeft: {
+    1: 10,
+    2: 26,
+    3: 16,
+  },
+  textClassName: {
+    1: 'font-semibold text-[14px] tracking-[-0.01em]',
+    2: 'font-semibold text-[13px]',
+    3: 'font-normal text-[13px]',
+  },
+  textColor: {
+    1: '#171c24',
+    2: '#3f4956',
+    3: '#5f6a78',
+  },
+  objectiveIcon: {
+    filledBackground: '#171c24',
+    emptyBackground: '#8f98a8',
+    iconColor: '#ffffff',
+  },
+  activeRowBackground: 'rgba(132, 141, 154, 0.14)',
+  hoverRowBackground: 'rgba(132, 141, 154, 0.14)',
+  activeRowBorder: 'transparent',
+  activeRowShadow: 'none',
+} as const
+
+const SIDEBAR_TRACK_LAYOUT = {
+  objectiveAxisLeft: 22,
+  // 所有树状线都从同一套行内坐标推导，避免靠“试数值”补位置
+  krCheckboxCenter:
+    SIDEBAR_ROW_LAYOUT.containerMarginLeft[2] +
+    SIDEBAR_ROW_LAYOUT.containerPaddingLeft[2] +
+    8,
+} as const
+
+const SIDEBAR_TREE_LAYOUT = {
+  axisLeft: SIDEBAR_TRACK_LAYOUT.objectiveAxisLeft,
+  axisColor: '#e7e3dc',
+  groupGapClass: 'gap-0',
+  contentGapClass: 'gap-0',
+  childrenStackGapClass: 'mt-2',
+  groupBottomGapClass: 'pb-2',
+  nestedTodoGapClass: 'mt-1',
+  objectiveAxisTop: 46,
+  objectiveAxisBottom: 0,
+  toggleOffsetLeft: -10,
+  toggleSize: 20,
+  toggleGlyphSize: 12,
+  toggleLineGapWidth: 8,
+  toggleLineGapHeight: 24,
+  activeKrInsetLeft: 20,
+  activeTodoInsetLeft: 9,
+  todoLineLeft: SIDEBAR_TRACK_LAYOUT.krCheckboxCenter,
+  todoRowHeight: 42,
+  todoLineBottomGap: 10,
+  krStackClass: 'space-y-2',
+  todoStackClass: 'space-y-2',
+} as const
+
 // 颜色配置 - 低饱和不透明底色 + 优雅阴影
 export const COLOR_OPTIONS = [
-  { key: 'none', label: '默认', bgColor: 'transparent', textColor: '#1D1D1F', shadow: 'none' },
-  { key: 'olive', label: '橄榄绿', bgColor: '#F0F2E8', textColor: '#5A6B3C', shadow: '0 4px 12px rgba(90, 107, 60, 0.15), 0 2px 4px rgba(90, 107, 60, 0.1)' },
-  { key: 'ultramarine', label: '群青', bgColor: '#E8E8FC', textColor: '#5C5CB8', shadow: '0 4px 12px rgba(92, 92, 184, 0.15), 0 2px 4px rgba(92, 92, 184, 0.1)' },
-  { key: 'blue', label: '蓝色', bgColor: '#E8F0FC', textColor: '#2A5FA7', shadow: '0 4px 12px rgba(42, 95, 167, 0.15), 0 2px 4px rgba(42, 95, 167, 0.1)' },
-  { key: 'purple', label: '紫色', bgColor: '#F0E8FC', textColor: '#7C4AC7', shadow: '0 4px 12px rgba(124, 74, 199, 0.15), 0 2px 4px rgba(124, 74, 199, 0.1)' },
-  { key: 'brown', label: '棕色', bgColor: '#F5EDE8', textColor: '#6B4B3C', shadow: '0 4px 12px rgba(107, 75, 60, 0.15), 0 2px 4px rgba(107, 75, 60, 0.1)' },
+  { key: 'none', label: '默认', bgColor: 'transparent', textColor: '#364152', shadow: 'none' },
+  { key: 'graphite', label: '石墨黑', bgColor: '#171c24', textColor: '#171c24', shadow: 'none' },
+  { key: 'blue', label: '提醒蓝', bgColor: '#0A84FF', textColor: '#0A84FF', shadow: 'none' },
+  { key: 'red', label: '计划红', bgColor: '#FF453A', textColor: '#FF453A', shadow: 'none' },
+  { key: 'orange', label: '旗标橙', bgColor: '#FF9F0A', textColor: '#FF9F0A', shadow: 'none' },
+  { key: 'green', label: '分配绿', bgColor: '#30D158', textColor: '#30D158', shadow: 'none' },
+  { key: 'purple', label: '提醒紫', bgColor: '#BF5AF2', textColor: '#BF5AF2', shadow: 'none' },
+  { key: 'teal', label: '湖水青', bgColor: '#40C8E0', textColor: '#40C8E0', shadow: 'none' },
 ]
 
 interface SidebarProps {
   activeObjective?: string
   onSetActive?: (id: string) => void
-  onAddToDailyTasks?: (item: { id: string; title: string; color?: string | null }) => void
+  onAddToDailyTasks?: (item: { id: string; title: string; color?: string | null; type?: 'O' | 'KR' | 'TODO' }) => void
+  onOpenObjectiveBoard?: (item: { id: string; title: string; color?: string | null }) => void
   refreshTrigger?: number
   shouldScrollToActive?: boolean // 是否自动滚动到选中项（中间面板触发时为 true）
+  sliderStyle?: 'bead' | 'pill'
+  onOpenWorkspaceThemeMenu?: (position: { x: number; y: number }) => void
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ activeObjective: externalActiveObjective, onSetActive, onAddToDailyTasks, refreshTrigger, shouldScrollToActive = false }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ activeObjective: externalActiveObjective, onSetActive, onAddToDailyTasks, onOpenObjectiveBoard, refreshTrigger, shouldScrollToActive = false, sliderStyle = 'bead', onOpenWorkspaceThemeMenu }) => {
   const [internalActiveObjective, setInternalActiveObjective] = useState<string>('obj-1')
+  const [activeSortId, setActiveSortId] = useState<string | null>(null)
+  const [overSortId, setOverSortId] = useState<string | null>(null)
+  const [previewPosition, setPreviewPosition] = useState<ReorderPreviewPosition>(null)
+  const [recentlyMovedId, setRecentlyMovedId] = useState<string | null>(null)
 
   // 使用外部或内部的 activeObjective
   const activeObjective = externalActiveObjective ?? internalActiveObjective
@@ -66,7 +171,60 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeObjective: externalActiv
     clearEditingId,
     refresh,
     expandAncestors,
+    reorderItems,
+    getReorderPreviewTarget,
   } = useDatabase()
+
+  useDndMonitor({
+    onDragStart: (event) => {
+      const activeData = event.active.data.current as { dragKind?: string } | undefined
+      if (activeData?.dragKind === 'sidebar-sort') {
+        setActiveSortId(String(event.active.id))
+      }
+    },
+    onDragOver: (event) => {
+      const activeData = event.active.data.current as { dragKind?: string } | undefined
+      const overData = event.over?.data.current as { dragKind?: string } | undefined
+      const translatedRect = event.active.rect.current.translated
+      const pointerY = translatedRect ? translatedRect.top + translatedRect.height / 2 : null
+
+      if (activeData?.dragKind === 'sidebar-sort' && overData?.dragKind === 'sidebar-sort') {
+        const preview = getReorderPreviewTarget(String(event.active.id), pointerY)
+        setOverSortId(preview.overId)
+        setPreviewPosition(preview.position)
+      } else {
+        setOverSortId(null)
+        setPreviewPosition(null)
+      }
+    },
+    onDragEnd: (event) => {
+      const activeData = event.active.data.current as { dragKind?: string } | undefined
+      const overData = event.over?.data.current as { dragKind?: string } | undefined
+
+      setActiveSortId(null)
+      setOverSortId(null)
+      setPreviewPosition(null)
+
+      if (activeData?.dragKind !== 'sidebar-sort' || overData?.dragKind !== 'sidebar-sort') {
+        return
+      }
+
+      void reorderItems(String(event.active.id), String(event.over?.id), previewPosition).then((didMove) => {
+        if (didMove) {
+          const movedId = String(event.active.id)
+          setRecentlyMovedId(movedId)
+          window.setTimeout(() => {
+            setRecentlyMovedId((current) => (current === movedId ? null : current))
+          }, 1400)
+        }
+      })
+    },
+    onDragCancel: () => {
+      setActiveSortId(null)
+      setOverSortId(null)
+      setPreviewPosition(null)
+    },
+  })
 
   // 当外部 activeObjective 变化时，自动展开父级
   useEffect(() => {
@@ -130,10 +288,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeObjective: externalActiv
 
   // 处理进度条切换
   const [sliderPercentage, setSliderPercentage] = useState(0)
-  
-  // 滑块风格切换状态（临时实验室功能）
-  const [sliderStyle, setSliderStyle] = useState<'bead' | 'pill'>('bead')
-  
+
   const handleViewModeChange = (mode: string, percentage: number) => {
     const modeMap: Record<string, ResetLevel> = {
       'objectives': 'objectives',
@@ -221,14 +376,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeObjective: externalActiv
     }
   }
 
+  const handleSidebarContextMenu = (e: React.MouseEvent) => {
+    if (!onOpenWorkspaceThemeMenu) return
+    e.preventDefault()
+    onOpenWorkspaceThemeMenu({ x: e.clientX, y: e.clientY })
+  }
+
   return (
     <aside
+      onContextMenu={handleSidebarContextMenu}
       className="w-full h-full flex flex-col transition-all duration-300"
       style={{
-        background: themeConfig.background,
+        background: 'transparent',
         color: themeConfig.textColor,
-        backdropFilter: themeConfig.blur ? 'blur(40px) saturate(150%)' : 'none',
-        WebkitBackdropFilter: themeConfig.blur ? 'blur(40px) saturate(150%)' : 'none',
+        backdropFilter: 'none',
+        WebkitBackdropFilter: 'none',
+        boxShadow: 'none',
       }}
     >
       {/* 可拖拽的上边栏区域 */}
@@ -241,15 +404,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeObjective: externalActiv
         />
       </div>
 
-      <nav ref={navRef} className="flex-1 px-3 overflow-y-auto scrollbar-hide hover:scrollbar-show">
+      <nav ref={navRef} className="flex-1 px-4 overflow-y-auto scrollbar-hide hover:scrollbar-show">
         <div className="mt-2">
           <div className="flex items-center justify-between px-3 py-2">
             <div className="flex items-center gap-2">
               {/* 面包屑标题 - 无动画即时切换 */}
               <div
-                className="text-xs font-semibold uppercase tracking-wider"
+                className="text-[11px] font-semibold uppercase tracking-[0.18em]"
                 style={{ 
-                  color: themeConfig.isDark ? 'rgba(255,255,255,0.6)' : 'rgba(74, 78, 105, 0.8)',
+                  color: themeConfig.isDark ? 'rgba(255,255,255,0.6)' : 'rgba(74, 78, 105, 0.62)',
                 }}
               >
                 {breadcrumb.text}
@@ -291,67 +454,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeObjective: externalActiv
               itemRefs={itemRefs}
               onAddToDailyTasks={onAddToDailyTasks}
               onToggleStatus={updateStatus}
+              activeSortId={activeSortId}
+              overSortId={overSortId}
+              previewPosition={previewPosition}
+              recentlyMovedId={recentlyMovedId}
+              onOpenObjectiveBoard={onOpenObjectiveBoard}
             />
           </div>
         </div>
       </nav>
-
-      <div
-        className="p-3 border-t transition-colors duration-300"
-        style={{ borderColor: themeConfig.isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)' }}
-      >
-        <div className="mb-2">
-          <SidebarThemeSelector />
-        </div>
-
-        {/* 滑动条风格实验室 - 临时切换功能 */}
-        <div className="flex items-center justify-between px-2 py-2 mb-2 rounded-lg bg-gray-100/50 dark:bg-gray-800/50">
-          <span className="text-[11px] text-gray-500 dark:text-gray-400">滑块风格</span>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setSliderStyle('bead')}
-              className={`p-1.5 rounded transition-all ${sliderStyle === 'bead' ? 'bg-white dark:bg-gray-700 shadow-sm' : 'hover:bg-gray-200/50 dark:hover:bg-gray-700/50'}`}
-              title="拟物圆珠"
-            >
-              <div className="w-3 h-3 rounded-full bg-gradient-to-br from-gray-300 to-gray-500" />
-            </button>
-            <button
-              onClick={() => setSliderStyle('pill')}
-              className={`p-1.5 rounded transition-all ${sliderStyle === 'pill' ? 'bg-white dark:bg-gray-700 shadow-sm' : 'hover:bg-gray-200/50 dark:hover:bg-gray-700/50'}`}
-              title="玻璃药片"
-            >
-              <div className="w-4 h-2 rounded-sm bg-gradient-to-r from-gray-300 to-gray-500" />
-            </button>
-          </div>
-        </div>
-
-        <div
-          className="flex items-center gap-3 px-2 py-2 rounded-macos-sm cursor-pointer transition-colors"
-          style={{ color: themeConfig.textColor }}
-        >
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center">
-            <span className="text-white text-sm font-medium">U</span>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">User Name</p>
-            <p
-              className="text-xs truncate transition-colors duration-300"
-              style={{ color: themeConfig.isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)' }}
-            >
-              user@example.com
-            </p>
-          </div>
-          <SettingsIcon
-            className="w-4 h-4 transition-colors duration-300"
-            style={{ color: themeConfig.isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.4)' }}
-          />
-        </div>
-
-        {/* 版本号 */}
-        <div className="mt-2 px-2">
-          <VersionDisplay />
-        </div>
-      </div>
 
       {/* 呼吸灯动画样式 */}
       <style>{`
@@ -362,6 +473,23 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeObjective: externalActiv
         .highlight-pulse {
           animation: highlight-pulse 1s ease-in-out 2;
           border-radius: 6px;
+        }
+        @keyframes moved-card-flash {
+          0% {
+            box-shadow: 0 0 0 0 rgba(125, 108, 242, 0.0);
+            border-color: rgba(125, 108, 242, 0.18);
+          }
+          30% {
+            box-shadow: 0 0 0 5px rgba(125, 108, 242, 0.12);
+            border-color: rgba(125, 108, 242, 0.42);
+          }
+          100% {
+            box-shadow: 0 0 0 0 rgba(125, 108, 242, 0.0);
+            border-color: rgba(125, 108, 242, 0.18);
+          }
+        }
+        .moved-card-flash {
+          animation: moved-card-flash 900ms cubic-bezier(0.22, 1, 0.36, 1);
         }
       `}</style>
     </aside>
@@ -374,6 +502,7 @@ interface ObjectiveItemProps {
   isActive: boolean
   isEditing: boolean
   isNewObjective?: boolean
+  isRecentlyMoved?: boolean
   onClick: () => void
   onUpdateLabel: (newLabel: string) => void
   onToggleExpand?: (id?: string) => void
@@ -386,8 +515,83 @@ interface ObjectiveItemProps {
   hasChildren?: boolean
   itemRef?: (el: HTMLDivElement | null) => void
   parentObjectiveColor?: string | null
-  onAddToDailyTasks?: (item: { id: string; title: string; color?: string | null }) => void
+  onAddToDailyTasks?: (item: { id: string; title: string; color?: string | null; type?: 'O' | 'KR' | 'TODO' }) => void
   onToggleStatus?: (dbId: string, newStatus: number) => void
+  onOpenObjectiveBoard?: (item: { id: string; title: string; color?: string | null }) => void
+  hideKrTriangle?: boolean
+}
+
+interface SortableSidebarItemWrapperProps {
+  itemId: string
+  level: 1 | 2 | 3
+  title: string
+  iconType: 'objective' | 'keyresult' | 'todo'
+  children: React.ReactNode
+  activeSortId?: string | null
+  overSortId?: string | null
+  previewPosition?: ReorderPreviewPosition
+}
+
+const SortableSidebarItemWrapper: React.FC<SortableSidebarItemWrapperProps> = ({
+  itemId,
+  level,
+  title,
+  iconType,
+  children,
+  activeSortId,
+  overSortId,
+  previewPosition,
+}) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: itemId,
+    data: {
+      id: itemId,
+      dragKind: 'sidebar-sort',
+      level,
+      title,
+      content: title,
+      type: iconType === 'objective' ? 'O' : iconType === 'keyresult' ? 'KR' : 'TODO',
+      iconType,
+    },
+  })
+
+  return (
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      data-sidebar-sort-id={itemId}
+      className={`relative ${isDragging ? 'z-20' : ''}`}
+      style={{
+        transform: isDragging ? CSS.Transform.toString(transform) : undefined,
+        transition: transition || 'transform 140ms cubic-bezier(0.22, 0.9, 0.24, 1)',
+        opacity: isDragging ? 0.16 : 1,
+        boxShadow: isDragging ? '0 10px 18px rgba(15, 23, 42, 0.08)' : undefined,
+      }}
+    >
+      {overSortId === itemId && activeSortId !== itemId && previewPosition && (
+        <div
+          className={`pointer-events-none absolute left-0 right-0 z-30 px-1 ${
+            previewPosition === 'before' ? 'top-0 -translate-y-[10px]' : 'bottom-0 translate-y-[10px]'
+          }`}
+        >
+          <div className="relative flex items-center">
+            <span className="h-[5px] w-[5px] flex-shrink-0 rounded-full bg-[#7d6cf2] shadow-[0_0_10px_rgba(125,108,242,0.18)]" />
+            <span className="mx-1 h-[2px] flex-1 rounded-full bg-[#7d6cf2] shadow-[0_0_10px_rgba(125,108,242,0.14)]" />
+            <span className="h-[5px] w-[5px] flex-shrink-0 rounded-full bg-[#7d6cf2] shadow-[0_0_10px_rgba(125,108,242,0.18)]" />
+          </div>
+        </div>
+      )}
+      {children}
+    </div>
+  )
 }
 
 const ObjectiveItem: React.FC<ObjectiveItemProps> = ({
@@ -395,6 +599,7 @@ const ObjectiveItem: React.FC<ObjectiveItemProps> = ({
   isActive,
   isEditing: isEditingProp,
   isNewObjective,
+  isRecentlyMoved = false,
   onClick,
   onUpdateLabel,
   onToggleExpand,
@@ -409,6 +614,8 @@ const ObjectiveItem: React.FC<ObjectiveItemProps> = ({
   parentObjectiveColor,
   onAddToDailyTasks,
   onToggleStatus,
+  onOpenObjectiveBoard,
+  hideKrTriangle = false,
 }) => {
   const { themeConfig } = useSidebarTheme()
   const [isEditing, setIsEditing] = useState(false)
@@ -517,125 +724,10 @@ const ObjectiveItem: React.FC<ObjectiveItemProps> = ({
         id: item.dbId,
         title: item.label,
         color: effectiveColor,
+        type: 'TODO',
       })
     }
     handleCloseContextMenu()
-  }
-
-  const getBackgroundColor = () => {
-    // 选中状态时使用黑底，不应用自定义背景色
-    return isActive ? undefined : undefined
-  }
-
-  // 容器缩进 - 用于控制容器整体位置
-  const getContainerIndentStyle = () => {
-    // Level 3 (TODO) 容器左边缘与竖线重合 (竖线在 40px)
-    const marginMap = { 1: 0, 2: 0, 3: 40 }
-    return { marginLeft: `${marginMap[item.level]}px` }
-  }
-
-  // 内容缩进 - 用于控制容器内内容的缩进
-  const getIndentStyle = () => {
-    // Level 3 (TODO) 减少缩进，让圆圈靠近容器左边
-    const indentMap = { 1: 0, 2: 20, 3: 12 }
-    return { paddingLeft: `${12 + indentMap[item.level]}px` }
-  }
-
-  const getTextStyleClass = () => {
-    switch (item.level) {
-      case 1: return 'font-semibold text-[14px]'
-      case 2: return 'font-semibold text-[14px]'
-      case 3: return 'font-semibold text-[13px]'
-      default: return 'font-semibold text-[13px]'
-    }
-  }
-
-  const getTextStyle = () => {
-    // 选中状态下使用目标颜色
-    if (isActive) {
-      if (isObjective && item.color) {
-        const colorOption = COLOR_OPTIONS.find(c => c.key === item.color)
-        if (colorOption) return { color: colorOption.textColor }
-      }
-      // KR/TODO 选中时使用父级 Objective 的颜色
-      if (parentObjectiveColor) {
-        const colorOption = COLOR_OPTIONS.find(c => c.key === parentObjectiveColor)
-        if (colorOption) return { color: colorOption.textColor }
-      }
-    }
-    
-    // 非选中状态的正常逻辑
-    if (isObjective && item.color) {
-      const colorOption = COLOR_OPTIONS.find(c => c.key === item.color)
-      if (colorOption) return { color: colorOption.textColor }
-    }
-    const colors: Record<number, string> = {
-      1: '#1D1D1F',
-      2: '#4A4A4A',
-      3: '#8B8B93',  // TODO 颜色更浅
-    }
-    return { color: colors[item.level] || '#B0B0B5' }
-  }
-
-  // 默认浅灰色背景色（用于新建目标）
-  const DEFAULT_GRAY_BG = '#F5F5F7'
-
-  const getObjectiveBackgroundColor = () => {
-    // 选中状态下也应用 Objective 的彩色背景（作为玻璃质感的底色）
-    if (isObjective) {
-      if (item.color) {
-        const colorOption = COLOR_OPTIONS.find(c => c.key === item.color)
-        if (colorOption && colorOption.bgColor !== 'transparent') {
-          return colorOption.bgColor
-        }
-      }
-      // 如果没有设置颜色，使用默认浅灰色
-        return DEFAULT_GRAY_BG
-    }
-    return undefined
-  }
-
-  // 默认浅灰色阴影
-  const DEFAULT_GRAY_SHADOW = '0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04)'
-
-  const getObjectiveShadow = () => {
-    if (isObjective) {
-      // 选中状态使用阴影（玻璃质感）
-      if (isActive) {
-        if (item.color) {
-          const colorOption = COLOR_OPTIONS.find(c => c.key === item.color)
-          if (colorOption && colorOption.shadow !== 'none') {
-            return colorOption.shadow
-          }
-        }
-        // 如果没有设置颜色，使用默认浅灰色阴影
-        return DEFAULT_GRAY_SHADOW
-      }
-    }
-    return undefined
-  }
-
-  // 默认灰色描边颜色（带透明度 - 更低透明度更柔和）
-  const DEFAULT_GRAY_BORDER = 'rgba(120, 120, 128, 0.15)'
-
-  // 获取默认状态下的边框颜色（带透明度）- 一级目标默认状态带边框
-  const getDefaultBorderColor = () => {
-    if (!isActive && isObjective) {
-      if (item.color) {
-        const colorOption = COLOR_OPTIONS.find(c => c.key === item.color)
-        if (colorOption) {
-          // 将 hex 颜色转换为 rgba，添加 15% 透明度（更柔和）
-          const hex = colorOption.textColor.replace('#', '')
-          const r = parseInt(hex.substring(0, 2), 16)
-          const g = parseInt(hex.substring(2, 4), 16)
-          const b = parseInt(hex.substring(4, 6), 16)
-          return `rgba(${r}, ${g}, ${b}, 0.15)`
-        }
-      }
-      // 如果没有设置颜色，使用默认灰色描边
-      return DEFAULT_GRAY_BORDER
-    }
-    return undefined
   }
 
   const isObjective = item.iconType === 'objective'
@@ -644,6 +736,39 @@ const ObjectiveItem: React.FC<ObjectiveItemProps> = ({
 
   // 判断是否为末端 TODO（可拖拽）
   const isDraggableTodo = isTodo
+  const rowTextColor = isObjective
+    ? SIDEBAR_ROW_LAYOUT.textColor[1]
+    : (SIDEBAR_ROW_LAYOUT.textColor[item.level] || SIDEBAR_ROW_LAYOUT.textColor[3])
+  const levelPaddingLeft = (() => {
+    const basePadding = SIDEBAR_ROW_LAYOUT.containerPaddingLeft[item.level]
+    return basePadding
+  })()
+  const rowIndentStyle = {
+    marginLeft: `${SIDEBAR_ROW_LAYOUT.containerMarginLeft[item.level]}px`,
+    paddingLeft: `${levelPaddingLeft}px`,
+  }
+  const objectiveColorOption = isObjective && item.color
+    ? COLOR_OPTIONS.find((colorOption) => colorOption.key === item.color)
+    : null
+  const objectiveIconTone = {
+    backgroundColor: objectiveColorOption && objectiveColorOption.bgColor !== 'transparent'
+      ? objectiveColorOption.bgColor
+      : hasChildren
+        ? SIDEBAR_ROW_LAYOUT.objectiveIcon.filledBackground
+        : SIDEBAR_ROW_LAYOUT.objectiveIcon.emptyBackground,
+    iconColor: SIDEBAR_ROW_LAYOUT.objectiveIcon.iconColor,
+  }
+  const rowBackgroundColor = isActive ? SIDEBAR_ROW_LAYOUT.activeRowBackground : undefined
+  const hoverBackgroundColor = SIDEBAR_ROW_LAYOUT.hoverRowBackground
+  const rowBoxShadow = isActive ? SIDEBAR_ROW_LAYOUT.activeRowShadow : 'none'
+  const rowBorderColor = isActive ? SIDEBAR_ROW_LAYOUT.activeRowBorder : 'transparent'
+  const rowTextClassName = SIDEBAR_ROW_LAYOUT.textClassName[item.level] || SIDEBAR_ROW_LAYOUT.textClassName[3]
+  const rowPaddingClass = SIDEBAR_ROW_LAYOUT.rowVerticalPaddingClass[item.level] || SIDEBAR_ROW_LAYOUT.rowVerticalPaddingClass[3]
+  const showInsetActiveContainer = false
+  const activeInsetClassName = 'self-stretch rounded-r-macos-sm rounded-l-[10px]'
+  const activeInsetStyle = undefined
+  const rowBackgroundColorStyle = isActive && (isKR || isTodo || isObjective) ? 'transparent' : rowBackgroundColor
+  const shouldRenderInteractiveBackground = isActive || isObjective || isKR || isTodo
 
   // 渲染内容
   const content = (
@@ -653,106 +778,188 @@ const ObjectiveItem: React.FC<ObjectiveItemProps> = ({
       onDoubleClick={handleDoubleClick}
       onContextMenu={handleContextMenu}
       className={`
-          flex items-center gap-2 py-3.5
-          ${isTodo ? 'rounded-r-macos-sm' : 'rounded-macos-sm'}
+          group relative flex items-center
+          ${SIDEBAR_ROW_LAYOUT.rowGapClass} ${rowPaddingClass}
+          ${isTodo ? 'rounded-macos-sm' : 'rounded-macos-sm'}
           text-sm cursor-pointer transition-all duration-200
-          ${!isActive && isObjective
-            ? 'border' // 默认一级目标：1px边框，无玻璃质感
-            : isActive && isObjective
-              ? 'backdrop-blur-sm shadow-sm border border-white/60' // 选中一级目标：玻璃质感+阴影
-              : isActive
-                ? 'backdrop-blur-sm border border-white/60'
-                : 'hover:bg-white/60 dark:hover:bg-gray-500/25'
-          }
+          ${isRecentlyMoved ? 'moved-card-flash' : ''}
+          ${isActive ? 'backdrop-blur-sm border' : 'border'}
           ${isDraggableTodo ? 'pr-10' : ''}
         `}
       style={{
         color: themeConfig.textColor,
-        backgroundColor: isActive 
-          ? (getObjectiveBackgroundColor() 
-              ? getObjectiveBackgroundColor() // Objective 选中时使用其原有颜色
-              : 'rgba(255,255,255,0.85)') // 非 Objective 使用更明显的白色底
-          : (isObjective && item.color
-              ? getObjectiveBackgroundColor() // 一级目标默认状态也使用玻璃质感底色
-              : (getObjectiveBackgroundColor() || getBackgroundColor())),
-        boxShadow: getObjectiveShadow(),
-        borderColor: getDefaultBorderColor(),
-        ...getIndentStyle(),
-        ...getContainerIndentStyle(),
+        boxShadow: rowBoxShadow,
+        borderColor: rowBorderColor,
+        ...rowIndentStyle,
+        backgroundColor: rowBackgroundColorStyle,
       }}
     >
+          {shouldRenderInteractiveBackground && (
+            <div
+              aria-hidden="true"
+              className={`
+                pointer-events-none absolute inset-y-0 right-0 z-0 rounded-r-macos-sm rounded-l-[10px]
+                opacity-0 transition-opacity duration-200 group-hover:opacity-100
+                ${isActive ? 'opacity-100' : ''}
+              `}
+              style={{
+                left: `${isKR ? SIDEBAR_TREE_LAYOUT.activeKrInsetLeft : isTodo ? SIDEBAR_TREE_LAYOUT.activeTodoInsetLeft : 0}px`,
+                backgroundColor: isActive ? rowBackgroundColor : hoverBackgroundColor,
+              }}
+            />
+          )}
           {isObjective && hasChildren && (
             <div
-              className="flex-shrink-0 w-4 h-4 flex items-center justify-center opacity-60 hover:opacity-100"
+              className={`relative z-10 flex-shrink-0 flex h-6 w-6 items-center justify-center rounded-full transition-opacity ${isObjective ? 'opacity-75 hover:opacity-100' : 'opacity-60 hover:opacity-100'}` }
+              style={{ backgroundColor: objectiveIconTone.backgroundColor }}
               onClick={handleExpandClick}
             >
-              {item.expanded ? (
-                <ChevronDown className="w-4 h-4" />
-              ) : (
-                <ChevronRight className="w-4 h-4" />
-              )}
+              <ObjectiveContainerIcon color={objectiveIconTone.iconColor} />
             </div>
           )}
-          {isObjective && !hasChildren && <div className="flex-shrink-0 w-4" />}
-
-          {isKR && hasChildren && (
+          {isObjective && !hasChildren && (
             <div
-              className="flex-shrink-0 w-4 h-4 flex items-center justify-center opacity-60 hover:opacity-100"
-              onClick={handleExpandClick}
+              className="relative z-10 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full opacity-55"
+              style={{ backgroundColor: objectiveIconTone.backgroundColor }}
             >
-              <Triangle
-                className={`w-3 h-3 transition-transform duration-200 ${
-                  item.expanded ? 'rotate-180' : 'rotate-90'
-                }`}
-                fill="currentColor"
-                strokeWidth={0}
-              />
+              <ObjectiveContainerIcon color={objectiveIconTone.iconColor} />
             </div>
           )}
-          {isKR && !hasChildren && (
-            <div className="flex-shrink-0 w-4 h-4 flex items-center justify-center opacity-20">
-              <Triangle className="w-3 h-3 rotate-90" fill="currentColor" strokeWidth={0} />
+
+          {isKR && (
+            <div className={`relative z-10 flex min-w-0 flex-1 items-center gap-1.5 ${showInsetActiveContainer ? activeInsetClassName : ''}`} style={activeInsetStyle}>
+              {hasChildren && !hideKrTriangle && (
+                <div
+                  className="relative z-10 flex h-4 w-4 items-center justify-center bg-[rgba(245,245,243,0.98)] opacity-60 transition-opacity hover:opacity-100"
+                  onClick={handleExpandClick}
+                >
+                  <Triangle
+                    className={`h-3 w-3 transition-transform duration-200 ${
+                      item.expanded ? 'rotate-180' : 'rotate-90'
+                    }`}
+                    fill="currentColor"
+                    strokeWidth={0}
+                  />
+                </div>
+              )}
+
+              <div
+                className="flex-shrink-0 cursor-pointer"
+                style={{ color: rowTextColor }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onToggleStatus?.(item.dbId, item.status === 1 ? 0 : 1)
+                }}
+              >
+              {item.status === 1 ? (
+                <Circle className="h-4 w-4" fill="currentColor" strokeWidth={0} />
+              ) : (
+                <Circle className="h-4 w-4" strokeWidth={1.7} />
+                )}
+              </div>
+              {!isEditing ? (
+                <span
+                  className={`truncate block min-w-0 flex-1 ${rowTextClassName} h-[18px] leading-[18px] ${item.status === 1 ? 'line-through opacity-50' : ''}`}
+                  style={{ color: rowTextColor }}
+                >
+                  {item.label}
+                </span>
+              ) : (
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  onBlur={handleSave}
+                  onClick={(e) => e.stopPropagation()}
+                  autoFocus
+                  className="w-full min-w-0 bg-transparent border-none outline-none text-sm p-0 m-0 h-[18px] leading-[18px]"
+                  style={{ color: themeConfig.textColor, fontFamily: 'inherit' }}
+                />
+              )}
             </div>
           )}
 
           {isTodo && (
-            <div
-              className="flex-shrink-0 cursor-pointer pl-1"
-              style={getTextStyle()}
-              onClick={(e) => {
-                e.stopPropagation()
-                onToggleStatus?.(item.dbId, item.status === 1 ? 0 : 1)
-              }}
-            >
-              {item.status === 1 ? (
-                <Circle className="w-3.5 h-3.5" fill="currentColor" strokeWidth={0} />
+            <div className={`relative z-10 flex min-w-0 flex-1 items-center gap-2 ${showInsetActiveContainer ? activeInsetClassName : ''}`} style={activeInsetStyle}>
+              <div
+                className="flex-shrink-0 cursor-pointer"
+                style={{ color: rowTextColor }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onToggleStatus?.(item.dbId, item.status === 1 ? 0 : 1)
+                }}
+              >
+                {item.status === 1 ? (
+                  <Square className="w-3 h-3" fill="currentColor" fillOpacity={0.5} strokeWidth={0} />
+                ) : (
+                  <Square className="w-3 h-3" strokeWidth={1.35} />
+                )}
+              </div>
+              {!isEditing ? (
+                <span
+                  className={`truncate block min-w-0 flex-1 ${rowTextClassName} h-[18px] leading-[18px] ${item.status === 1 ? 'line-through opacity-50' : ''}`}
+                  style={{ color: rowTextColor }}
+                >
+                  {item.label}
+                </span>
               ) : (
-                <Circle className="w-3.5 h-3.5" strokeWidth={1.5} />
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  onBlur={handleSave}
+                  onClick={(e) => e.stopPropagation()}
+                  autoFocus
+                  className="w-full min-w-0 bg-transparent border-none outline-none text-sm p-0 m-0 h-[18px] leading-[18px]"
+                  style={{ color: themeConfig.textColor, fontFamily: 'inherit' }}
+                />
               )}
             </div>
           )}
 
-          {isEditing ? (
-            <input
-              ref={inputRef}
-              type="text"
-              value={editValue}
-              onChange={(e) => setEditValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              onBlur={handleSave}
-              onClick={(e) => e.stopPropagation()}
-              autoFocus
-              className="flex-1 bg-transparent border-none outline-none text-sm p-0 m-0 h-[18px] leading-[18px]"
-              style={{ color: themeConfig.textColor, fontFamily: 'inherit' }}
-              placeholder={item.level === 1 && editValue === '' ? '输入新目标...' : ''}
-            />
-          ) : (
-            <span
-              className={`truncate ${getTextStyleClass()} h-[18px] leading-[18px] ${item.status === 1 ? 'line-through opacity-50' : ''}`}
-              style={getTextStyle()}
+          {!isKR && !isTodo && (
+          <div className="relative z-10 min-w-0 flex-1">
+            {isEditing ? (
+              <input
+                ref={inputRef}
+                type="text"
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                onBlur={handleSave}
+                onClick={(e) => e.stopPropagation()}
+                autoFocus
+                className="w-full bg-transparent border-none outline-none text-sm p-0 m-0 h-[18px] leading-[18px]"
+                style={{ color: themeConfig.textColor, fontFamily: 'inherit' }}
+                placeholder={item.level === 1 && editValue === '' ? '输入新目标...' : ''}
+              />
+            ) : (
+              <span
+                className={`truncate block ${rowTextClassName} h-[18px] leading-[18px] ${item.status === 1 ? 'line-through opacity-50' : ''}`}
+                style={{ color: rowTextColor }}
+              >
+                {item.label}
+              </span>
+            )}
+          </div>
+          )}
+
+          {isObjective && item.level === 1 && onOpenObjectiveBoard && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onOpenObjectiveBoard({ id: item.dbId, title: item.label, color: item.color ?? null })
+              }}
+              className="ml-auto flex h-7 w-7 items-center justify-center rounded-full text-[#98a0ad] opacity-0 transition-all duration-200 hover:bg-white/60 hover:text-[#5f6880] group-hover:opacity-100"
+              title="打开目标面板"
             >
-              {item.label}
-            </span>
+              <ArrowRight className="h-4 w-4" strokeWidth={2.2} />
+            </button>
           )}
         </div>
       )
@@ -836,20 +1043,6 @@ const ObjectiveItem: React.FC<ObjectiveItemProps> = ({
       )
 }
 
-function SettingsIcon({ className, style }: { className?: string; style?: React.CSSProperties }) {
-  return (
-    <svg className={className} style={style} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.5"
-        d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-      />
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-    </svg>
-  )
-}
-
 // ObjectiveList 组件
 interface ObjectiveListProps {
   items: ObjectiveItemUI[]
@@ -867,8 +1060,13 @@ interface ObjectiveListProps {
   onClearNewObjective: () => void
   hasChildren: (itemId: string) => boolean
   itemRefs: React.MutableRefObject<Map<string, HTMLDivElement>>
-  onAddToDailyTasks?: (item: { id: string; title: string; color?: string | null }) => void
+  onAddToDailyTasks?: (item: { id: string; title: string; color?: string | null; type?: 'O' | 'KR' | 'TODO' }) => void
   onToggleStatus?: (dbId: string, newStatus: number) => void
+  activeSortId?: string | null
+  overSortId?: string | null
+  previewPosition?: ReorderPreviewPosition
+  recentlyMovedId?: string | null
+  onOpenObjectiveBoard?: (item: { id: string; title: string; color?: string | null }) => void
 }
 
 const ObjectiveList: React.FC<ObjectiveListProps> = ({
@@ -889,64 +1087,76 @@ const ObjectiveList: React.FC<ObjectiveListProps> = ({
   itemRefs,
   onAddToDailyTasks,
   onToggleStatus,
+  activeSortId,
+  overSortId,
+  previewPosition,
+  recentlyMovedId,
+  onOpenObjectiveBoard,
 }) => {
-  const objectiveGroups: { objective: ObjectiveItemUI; children: ObjectiveItemUI[] }[] = []
-  let currentGroup: { objective: ObjectiveItemUI; children: ObjectiveItemUI[] } | null = null
+  const { themeConfig } = useSidebarTheme()
+  const buildObjectiveGroups = (sourceItems: ObjectiveItemUI[]) => {
+    const groups: { objective: ObjectiveItemUI; children: ObjectiveItemUI[] }[] = []
+    let currentGroup: { objective: ObjectiveItemUI; children: ObjectiveItemUI[] } | null = null
 
-  for (const item of items) {
-    if (item.level === 1) {
-      currentGroup = { objective: item, children: [] }
-      objectiveGroups.push(currentGroup)
-    } else if (currentGroup && (item.level === 2 || item.level === 3)) {
-      currentGroup.children.push(item)
+    for (const item of sourceItems) {
+      if (item.level === 1) {
+        currentGroup = { objective: item, children: [] }
+        groups.push(currentGroup)
+      } else if (currentGroup && (item.level === 2 || item.level === 3)) {
+        currentGroup.children.push(item)
+      }
     }
+
+    return groups
   }
 
-  // 渲染 KR 及其子 TODO，带有层级线
-  const renderKRWithLine = (kr: ObjectiveItemUI, todos: ObjectiveItemUI[], index: number, parentColor: string | null) => {
-    const hasTodos = todos.length > 0
+  const buildKrGroups = (children: ObjectiveItemUI[]) => {
+    const groups: { kr: ObjectiveItemUI; todos: ObjectiveItemUI[] }[] = []
+    let currentKR: { kr: ObjectiveItemUI; todos: ObjectiveItemUI[] } | null = null
 
-    return (
-      <div key={kr.id} className="relative">
-        {/* KR 项 */}
-        <ObjectiveItem
-          item={kr}
-          isActive={activeObjective === kr.id}
-          isEditing={editingId === kr.id}
-          onClick={() => onSetActive(kr.id)}
-          onUpdateLabel={(newLabel) => onUpdateLabel(kr.dbId, newLabel)}
-          onToggleExpand={(id) => onToggleExpand(id || kr.id)}
-          onCreateSibling={() => onCreateSibling(kr.id)}
-          onCreateChild={() => onCreateChild(kr.id)}
-          onDelete={() => onDelete(kr.id, index)}
-          onUpdateColor={(colorKey) => onUpdateColor(kr.dbId, colorKey)}
-          onClearEditing={onClearEditing}
-          hasChildren={hasChildren(kr.id)}
-          itemRef={(el) => {
-            if (el) itemRefs.current.set(kr.dbId, el)
-          }}
-          parentObjectiveColor={parentColor}
-          onAddToDailyTasks={onAddToDailyTasks}
-          onToggleStatus={onToggleStatus}
-        />
+    for (const child of children) {
+      if (child.level === 2) {
+        currentKR = { kr: child, todos: [] }
+        groups.push(currentKR)
+      } else if (currentKR && child.level === 3) {
+        currentKR.todos.push(child)
+      }
+    }
 
-        {/* KR 下方的竖线容器 */}
-        {hasTodos && kr.expanded !== false && (
-          <div className="relative">
-            {/* 细竖线 - 从 KR 下方延伸到所有 TODO 下方 */}
-            {/* KR 三角形中心在 40px (32+8)，TODO 容器左边缘也在 40px (12+28)，竖线与容器边缘对齐 */}
-            <div
-              className="absolute top-0 bottom-0 w-[1px] bg-gray-200"
-              style={{ left: '40px', height: `${todos.length * 46}px` }}
-            />
+    return groups
+  }
 
-            {/* TODO 列表 */}
-            {todos.map((todo) => (
+  const objectiveGroups = buildObjectiveGroups(items)
+
+  const renderTodoList = (todos: ObjectiveItemUI[], parentColor: string | null, index: number) => (
+    <div className={`relative ${SIDEBAR_TREE_LAYOUT.nestedTodoGapClass}`}>
+      <div
+        className="absolute top-0 bottom-0 w-px"
+        style={{
+          left: `${SIDEBAR_TREE_LAYOUT.todoLineLeft}px`,
+          height: `${Math.max(0, todos.length * SIDEBAR_TREE_LAYOUT.todoRowHeight - SIDEBAR_TREE_LAYOUT.todoLineBottomGap)}px`,
+          backgroundColor: SIDEBAR_TREE_LAYOUT.axisColor,
+        }}
+      />
+
+      <SortableContext items={todos.map((todo) => todo.dbId)} strategy={verticalListSortingStrategy}>
+        <div className={SIDEBAR_TREE_LAYOUT.todoStackClass}>
+          {todos.map((todo) => (
+            <SortableSidebarItemWrapper
+              key={todo.id}
+              itemId={todo.dbId}
+              level={3}
+              title={todo.label}
+              iconType={todo.iconType}
+              activeSortId={activeSortId}
+              overSortId={overSortId}
+              previewPosition={previewPosition}
+            >
               <ObjectiveItem
-                key={todo.id}
                 item={todo}
                 isActive={activeObjective === todo.id}
                 isEditing={editingId === todo.id}
+                isRecentlyMoved={recentlyMovedId === todo.dbId}
                 onClick={() => onSetActive(todo.id)}
                 onUpdateLabel={(newLabel) => onUpdateLabel(todo.dbId, newLabel)}
                 onToggleExpand={(id) => onToggleExpand(id || todo.id)}
@@ -962,68 +1172,176 @@ const ObjectiveList: React.FC<ObjectiveListProps> = ({
                 parentObjectiveColor={parentColor}
                 onAddToDailyTasks={onAddToDailyTasks}
                 onToggleStatus={onToggleStatus}
+                onOpenObjectiveBoard={onOpenObjectiveBoard}
               />
-            ))}
-          </div>
-        )}
+            </SortableSidebarItemWrapper>
+          ))}
+        </div>
+      </SortableContext>
+    </div>
+  )
+
+  const renderKRWithLine = (kr: ObjectiveItemUI, todos: ObjectiveItemUI[], index: number, parentColor: string | null) => {
+    const krHasChildren = hasChildren(kr.id)
+    const showInlineTodos = krHasChildren && kr.expanded !== false && todos.length > 0
+
+    return (
+      <div key={kr.id} className="relative">
+        <div className="relative">
+          {krHasChildren && (
+            <div
+              className="pointer-events-none absolute inset-y-0 z-[12] flex items-center"
+              style={{ left: `${SIDEBAR_TREE_LAYOUT.axisLeft + SIDEBAR_TREE_LAYOUT.toggleOffsetLeft}px` }}
+            >
+              <div
+                aria-hidden="true"
+                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+                style={{
+                  width: `${SIDEBAR_TREE_LAYOUT.toggleLineGapWidth}px`,
+                  height: `${SIDEBAR_TREE_LAYOUT.toggleLineGapHeight}px`,
+                  background: themeConfig.background,
+                }}
+              />
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onToggleExpand(kr.id)
+                }}
+                className="pointer-events-auto relative flex items-center justify-center text-[#818a97] transition-opacity hover:opacity-100"
+                style={{
+                  width: `${SIDEBAR_TREE_LAYOUT.toggleSize}px`,
+                  height: `${SIDEBAR_TREE_LAYOUT.toggleSize}px`,
+                }}
+              >
+                <div
+                  style={{
+                    width: `${SIDEBAR_TREE_LAYOUT.toggleGlyphSize}px`,
+                    height: `${SIDEBAR_TREE_LAYOUT.toggleGlyphSize}px`,
+                  }}
+                >
+                  <TreeToggleTriangle expanded={kr.expanded !== false} />
+                </div>
+              </button>
+            </div>
+          )}
+
+          <SortableSidebarItemWrapper
+            itemId={kr.dbId}
+            level={2}
+            title={kr.label}
+            iconType={kr.iconType}
+            activeSortId={activeSortId}
+            overSortId={overSortId}
+            previewPosition={previewPosition}
+          >
+            <ObjectiveItem
+              item={kr}
+              isActive={activeObjective === kr.id}
+              isEditing={editingId === kr.id}
+              isRecentlyMoved={recentlyMovedId === kr.dbId}
+              onClick={() => onSetActive(kr.id)}
+              onUpdateLabel={(newLabel) => onUpdateLabel(kr.dbId, newLabel)}
+              onToggleExpand={(id) => onToggleExpand(id || kr.id)}
+              onCreateSibling={() => onCreateSibling(kr.id)}
+              onCreateChild={() => onCreateChild(kr.id)}
+              onDelete={() => onDelete(kr.id, index)}
+              onUpdateColor={(colorKey) => onUpdateColor(kr.dbId, colorKey)}
+              onClearEditing={onClearEditing}
+              hasChildren={krHasChildren}
+              itemRef={(el) => {
+                if (el) itemRefs.current.set(kr.dbId, el)
+              }}
+              parentObjectiveColor={parentColor}
+              onAddToDailyTasks={onAddToDailyTasks}
+              onToggleStatus={onToggleStatus}
+              onOpenObjectiveBoard={onOpenObjectiveBoard}
+              hideKrTriangle={krHasChildren}
+            />
+          </SortableSidebarItemWrapper>
+        </div>
+
+        {showInlineTodos && renderTodoList(todos, parentColor, index)}
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className={`flex flex-col ${SIDEBAR_TREE_LAYOUT.groupGapClass}`}>
       <AnimatePresence mode="popLayout">
-        {objectiveGroups.map((group, index) => (
-          <motion.div
-            key={group.objective.id}
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.2, ease: 'easeInOut' }}
-            className="flex flex-col gap-2"
-          >
-            <ObjectiveItem
-              item={group.objective}
-              isActive={activeObjective === group.objective.id}
-              isEditing={editingId === group.objective.id}
-              isNewObjective={newObjectiveId === group.objective.id}
-              onClick={() => onSetActive(group.objective.id)}
-              onUpdateLabel={(newLabel) => onUpdateLabel(group.objective.dbId, newLabel)}
-              onToggleExpand={(id) => onToggleExpand(id || group.objective.id)}
-              onCreateSibling={() => onCreateSibling(group.objective.id)}
-              onCreateChild={() => onCreateChild(group.objective.id)}
-              onDelete={() => onDelete(group.objective.id, index)}
-              onUpdateColor={(colorKey) => onUpdateColor(group.objective.dbId, colorKey)}
-              onClearEditing={onClearEditing}
-              onClearNewObjective={onClearNewObjective}
-              hasChildren={hasChildren(group.objective.id)}
-              itemRef={(el) => {
-                if (el) itemRefs.current.set(group.objective.dbId, el)
-              }}
-              onAddToDailyTasks={onAddToDailyTasks}
-              onToggleStatus={onToggleStatus}
-            />
+        <SortableContext items={objectiveGroups.map((group) => group.objective.dbId)} strategy={verticalListSortingStrategy}>
+          {objectiveGroups.map((group, index) => {
+            const krGroups = buildKrGroups(group.children)
+            const showObjectiveAxis = group.children.length > 0 && index < objectiveGroups.length - 1
 
-            {/* 将 children 分组为 KR 及其下属的 TODOs */}
-            {(() => {
-              const krGroups: { kr: ObjectiveItemUI; todos: ObjectiveItemUI[] }[] = []
-              let currentKR: { kr: ObjectiveItemUI; todos: ObjectiveItemUI[] } | null = null
+            return (
+              <SortableSidebarItemWrapper
+                key={group.objective.id}
+                itemId={group.objective.dbId}
+                level={1}
+                title={group.objective.label}
+                iconType={group.objective.iconType}
+                activeSortId={activeSortId}
+                overSortId={overSortId}
+                previewPosition={previewPosition}
+              >
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2, ease: 'easeInOut' }}
+                  className={`relative flex flex-col ${SIDEBAR_TREE_LAYOUT.contentGapClass} ${SIDEBAR_TREE_LAYOUT.groupBottomGapClass}`}
+                >
+                  {showObjectiveAxis && (
+                    <div
+                      className="pointer-events-none absolute z-0 w-px"
+                      style={{
+                        left: `${SIDEBAR_TREE_LAYOUT.axisLeft}px`,
+                        top: `${SIDEBAR_TREE_LAYOUT.objectiveAxisTop}px`,
+                        bottom: `${SIDEBAR_TREE_LAYOUT.objectiveAxisBottom}px`,
+                        backgroundColor: SIDEBAR_TREE_LAYOUT.axisColor,
+                      }}
+                    />
+                  )}
 
-              for (const child of group.children) {
-                if (child.level === 2) {
-                  currentKR = { kr: child, todos: [] }
-                  krGroups.push(currentKR)
-                } else if (currentKR && child.level === 3) {
-                  currentKR.todos.push(child)
-                }
-              }
+                  <ObjectiveItem
+                    item={group.objective}
+                    isActive={activeObjective === group.objective.id}
+                    isEditing={editingId === group.objective.id}
+                    isNewObjective={newObjectiveId === group.objective.id}
+                    isRecentlyMoved={recentlyMovedId === group.objective.dbId}
+                    onClick={() => onSetActive(group.objective.id)}
+                    onUpdateLabel={(newLabel) => onUpdateLabel(group.objective.dbId, newLabel)}
+                    onToggleExpand={(id) => onToggleExpand(id || group.objective.id)}
+                    onCreateSibling={() => onCreateSibling(group.objective.id)}
+                    onCreateChild={() => onCreateChild(group.objective.id)}
+                    onDelete={() => onDelete(group.objective.id, index)}
+                    onUpdateColor={(colorKey) => onUpdateColor(group.objective.dbId, colorKey)}
+                    onClearEditing={onClearEditing}
+                    onClearNewObjective={onClearNewObjective}
+                    hasChildren={hasChildren(group.objective.id)}
+                    itemRef={(el) => {
+                      if (el) itemRefs.current.set(group.objective.dbId, el)
+                    }}
+                    onAddToDailyTasks={onAddToDailyTasks}
+                    onToggleStatus={onToggleStatus}
+                    onOpenObjectiveBoard={onOpenObjectiveBoard}
+                  />
 
-              return krGroups.map((krGroup) =>
-                renderKRWithLine(krGroup.kr, krGroup.todos, index, group.objective.color || null)
-              )
-            })()}
-          </motion.div>
-        ))}
+                  <div className={`relative z-[1] ${SIDEBAR_TREE_LAYOUT.childrenStackGapClass}`}>
+                    <SortableContext items={krGroups.map((krGroup) => krGroup.kr.dbId)} strategy={verticalListSortingStrategy}>
+                      <div className={SIDEBAR_TREE_LAYOUT.krStackClass}>
+                        {krGroups.map((krGroup) =>
+                          renderKRWithLine(krGroup.kr, krGroup.todos, index, group.objective.color || null)
+                        )}
+                      </div>
+                    </SortableContext>
+                  </div>
+                </motion.div>
+              </SortableSidebarItemWrapper>
+            )
+          })}
+        </SortableContext>
       </AnimatePresence>
     </div>
   )

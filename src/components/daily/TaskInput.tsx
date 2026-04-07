@@ -43,9 +43,9 @@ export const TaskInput: React.FC<TaskInputProps> = ({ onSubmit, disabled }) => {
   return (
     <div
       className={`
-        group flex items-center gap-3 px-12 py-4 mb-2
+        group mx-6 mb-1.5 flex items-center gap-3 rounded-2xl border border-transparent px-6 py-3.5
         transition-all duration-300 cursor-text
-        hover:bg-gray-50
+        hover:bg-[#f7f8fa]
         ${disabled || isSubmitting ? 'opacity-50 pointer-events-none' : ''}
       `}
       onClick={() => inputRef.current?.focus()}
@@ -67,8 +67,8 @@ export const TaskInput: React.FC<TaskInputProps> = ({ onSubmit, disabled }) => {
         placeholder={isSubmitting ? '保存中...' : '添加待办事项...'}
         disabled={disabled || isSubmitting}
         className="
-          flex-1 bg-transparent text-[14px] text-gray-700
-          placeholder:text-gray-400
+          flex-1 bg-transparent text-[14px] text-[#48515d]
+          placeholder:text-[#a4acb7]
           focus:outline-none
         "
       />

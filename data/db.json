@@ -1,13 +1,25 @@
 {
   "items": [
     {
+      "id": "709a3073-ff1c-4513-a6d6-5f1b54c6c5bb",
+      "type": "O",
+      "parent_id": null,
+      "title": "这是 1.0 版本",
+      "content": "",
+      "status": 0,
+      "sort_order": 0,
+      "created_at": "2026-04-03T11:32:35.792Z",
+      "updated_at": "2026-04-03T11:33:07.315Z",
+      "color": "ultramarine"
+    },
+    {
       "id": "obj-1",
       "type": "O",
       "parent_id": null,
       "title": "发布 vibe coding 视频",
       "content": "制作并发布一系列关于 vibe coding 的教学视频",
       "status": 0,
-      "sort_order": 47,
+      "sort_order": 49,
       "total_focus_time": 0,
       "created_at": "2026-03-31T02:09:31.000Z",
       "updated_at": "2026-04-01T08:13:42.309Z",
@@ -168,6 +180,84 @@
       "created_at": "2026-03-31T04:23:08.000Z",
       "updated_at": "2026-04-01T03:29:14.736Z",
       "color": null
+    },
+    {
+      "id": "88a8b323-abb0-4272-b5f9-45d567eeeb9c",
+      "type": "O",
+      "parent_id": null,
+      "title": "目标测试",
+      "content": "",
+      "status": 0,
+      "sort_order": 1,
+      "created_at": "2026-04-03T11:32:57.950Z",
+      "updated_at": "2026-04-03T11:33:12.056Z",
+      "color": "blue"
+    },
+    {
+      "id": "6e9f2a49-cedf-4427-b37f-905e44641bd7",
+      "type": "KR",
+      "parent_id": "709a3073-ff1c-4513-a6d6-5f1b54c6c5bb",
+      "title": "test1",
+      "content": "",
+      "status": 0,
+      "sort_order": 0,
+      "created_at": "2026-04-03T11:33:14.652Z",
+      "updated_at": "2026-04-03T11:33:22.218Z"
+    },
+    {
+      "id": "ea845553-82b0-425b-aa99-624ca233d18b",
+      "type": "KR",
+      "parent_id": "709a3073-ff1c-4513-a6d6-5f1b54c6c5bb",
+      "title": "test2",
+      "content": "",
+      "status": 0,
+      "sort_order": 1,
+      "created_at": "2026-04-03T11:33:22.224Z",
+      "updated_at": "2026-04-03T11:33:27.387Z"
+    },
+    {
+      "id": "b34d2fc5-57c0-4269-9834-60f84f331c58",
+      "type": "TODO",
+      "parent_id": "6e9f2a49-cedf-4427-b37f-905e44641bd7",
+      "title": "你好",
+      "content": "",
+      "status": 0,
+      "sort_order": 0,
+      "created_at": "2026-04-03T11:33:28.794Z",
+      "updated_at": "2026-04-03T11:33:31.877Z"
+    },
+    {
+      "id": "f9978def-3cdf-4c6f-835e-3e6f50de49c7",
+      "type": "TODO",
+      "parent_id": "6e9f2a49-cedf-4427-b37f-905e44641bd7",
+      "title": "世界",
+      "content": "",
+      "status": 0,
+      "sort_order": 1,
+      "created_at": "2026-04-03T11:33:31.886Z",
+      "updated_at": "2026-04-03T11:33:39.474Z"
+    },
+    {
+      "id": "e16e85c0-4182-42e5-b11e-9a445c946303",
+      "type": "TODO",
+      "parent_id": "ea845553-82b0-425b-aa99-624ca233d18b",
+      "title": "hello",
+      "content": "",
+      "status": 0,
+      "sort_order": 0,
+      "created_at": "2026-04-03T11:33:40.856Z",
+      "updated_at": "2026-04-03T11:33:47.237Z"
+    },
+    {
+      "id": "f6921c08-ab9f-4bba-9ecf-3c455f83d6a5",
+      "type": "TODO",
+      "parent_id": "ea845553-82b0-425b-aa99-624ca233d18b",
+      "title": "world",
+      "content": "",
+      "status": 0,
+      "sort_order": 1,
+      "created_at": "2026-04-03T11:33:47.244Z",
+      "updated_at": "2026-04-03T11:33:50.953Z"
     }
   ],
   "dailyTasks": [

@@ -177,7 +177,7 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
   return (
     <div>
       {/* 上边栏：日期标题居中 + 回到今天 - 可拖拽区域 */}
-      <div className="app-drag-region relative flex items-center justify-center px-4 py-3 border-b border-gray-100">
+      <div className="app-drag-region relative flex items-center justify-center px-4 py-3 border-b border-[#eceef2] bg-[#fafbfc]">
         {/* 中间：日期 + 日历按钮 */}
         <div className="flex items-center gap-2">
           <span className="text-[16px] font-semibold text-gray-800">
@@ -206,7 +206,7 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
       </div>
 
       {/* 周历导航 + 进度条 - 共用一个白色底色，增加下方阴影与TODO区分 */}
-      <div className="bg-white border-b border-gray-100 shadow-[0_4px_12px_rgba(0,0,0,0.08)]">
+      <div className="border-b border-[#eceef2] bg-[#fafbfc] shadow-[0_10px_24px_rgba(17,24,39,0.04)]">
         {/* 星期列表 */}
         <div className="flex items-center justify-between px-2 py-3">
           {/* 左箭头 */}
@@ -225,8 +225,8 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
                 onClick={() => handleSelectDate(item.date)}
                 className={`app-no-drag flex flex-col items-center justify-center gap-1 py-2 w-[52px] h-[60px] rounded-xl transition-colors ${
                   item.isSelected
-                    ? 'bg-gray-100'
-                    : 'hover:bg-gray-50'
+                    ? 'bg-[#eef1f5]'
+                    : 'hover:bg-[#f5f7fa]'
                 }`}
               >
                 {/* 星期 */}

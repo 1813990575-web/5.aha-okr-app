@@ -10,9 +10,11 @@ interface PanelConfig {
 interface ResizableLayoutProps {
   leftPanel: React.ReactNode
   centerPanel: React.ReactNode
-  rightPanel: React.ReactNode
+  rightPanel?: React.ReactNode
+  fullWidthPanel?: React.ReactNode
   leftPanelConfig?: Partial<PanelConfig>
   rightPanelConfig?: Partial<PanelConfig>
+  workspaceBackground?: string
 }
 
 const DEFAULT_LEFT_CONFIG: PanelConfig = {
@@ -33,9 +35,10 @@ const DEFAULT_RIGHT_CONFIG: PanelConfig = {
 interface ResizeHandleProps {
   onResize: (delta: number) => void
   direction: 'left' | 'right'
+  visibleLine?: boolean
 }
 
-const ResizeHandle: React.FC<ResizeHandleProps> = ({ onResize, direction }) => {
+const ResizeHandle: React.FC<ResizeHandleProps> = ({ onResize, direction, visibleLine = false }) => {
   const [isDragging, setIsDragging] = useState(false)
   const startXRef = useRef(0)
 
@@ -73,13 +76,25 @@ const ResizeHandle: React.FC<ResizeHandleProps> = ({ onResize, direction }) => {
 
   return (
     <div
-      className="relative flex-shrink-0 z-10 bg-transparent"
+      className="group relative flex-shrink-0 z-10 bg-transparent"
       style={{
-        width: isDragging ? '2px' : '1px',
+        width: visibleLine ? (isDragging ? '12px' : '10px') : (isDragging ? '6px' : '4px'),
         cursor: 'col-resize',
       }}
       onMouseDown={handleMouseDown}
-    />
+    >
+      <div
+        className="absolute inset-y-0 left-1/2 -translate-x-1/2 rounded-full transition-colors duration-200"
+        style={{
+          width: isDragging ? '2px' : '1px',
+          background: isDragging
+            ? 'rgba(124, 138, 158, 0.32)'
+            : visibleLine
+              ? 'rgba(210, 214, 222, 0.9)'
+              : 'transparent',
+        }}
+      />
+    </div>
   )
 }
 
@@ -87,8 +102,10 @@ export const ResizableLayout: React.FC<ResizableLayoutProps> = ({
   leftPanel,
   centerPanel,
   rightPanel,
+  fullWidthPanel,
   leftPanelConfig = {},
   rightPanelConfig = {},
+  workspaceBackground = 'linear-gradient(180deg,#f6f1ea,#f2ece4)',
 }) => {
   const leftConfig = { ...DEFAULT_LEFT_CONFIG, ...leftPanelConfig }
   const rightConfig = { ...DEFAULT_RIGHT_CONFIG, ...rightPanelConfig }
@@ -97,7 +114,7 @@ export const ResizableLayout: React.FC<ResizableLayoutProps> = ({
   const [rightWidth, setRightWidth] = useState(rightConfig.defaultWidth)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  // 调整左侧栏宽度
+  // 调整左侧栏宽度（通过中间卡片左边缘拖拽）
   const handleLeftResize = useCallback((delta: number) => {
     setLeftWidth((prev) => {
       const newWidth = prev + delta
@@ -119,38 +136,58 @@ export const ResizableLayout: React.FC<ResizableLayoutProps> = ({
   const minCenterWidth = 400
 
   return (
-    <div 
+    <div
       ref={containerRef}
-      className="h-full w-full flex overflow-hidden"
+      className="h-full w-full overflow-hidden"
     >
-      {/* 左侧栏 */}
       <div
-        className="flex-shrink-0 h-full overflow-hidden"
-        style={{ width: leftWidth }}
+        className="flex h-full w-full overflow-hidden"
+        style={{
+          background: workspaceBackground,
+          boxShadow: 'none',
+        }}
       >
-        {leftPanel}
-      </div>
+        {/* 左侧栏 */}
+        <div
+          className="flex-shrink-0 h-full overflow-hidden"
+          style={{ width: leftWidth }}
+        >
+          {leftPanel}
+        </div>
 
-      {/* 左侧调整把手 */}
-      <ResizeHandle onResize={handleLeftResize} direction="left" />
+        {/* 左侧与中间面板之间的拖拽带 */}
+        <div className="mr-[-5px] flex h-full flex-shrink-0 items-stretch">
+          <ResizeHandle onResize={handleLeftResize} direction="left" visibleLine />
+        </div>
 
-      {/* 中间栏 */}
-      <div 
-        className="flex-1 h-full overflow-hidden"
-        style={{ minWidth: minCenterWidth }}
-      >
-        {centerPanel}
-      </div>
+        {/* 中间 + 右侧区域 */}
+        <div
+          className="flex flex-1 overflow-hidden"
+          style={{ minWidth: fullWidthPanel ? minCenterWidth : minCenterWidth + rightWidth }}
+        >
+          {fullWidthPanel ? (
+            <div className="min-w-0 flex-1 overflow-hidden">
+              {fullWidthPanel}
+            </div>
+          ) : (
+            <>
+              <div className="min-w-0 flex-1 overflow-hidden">
+                {centerPanel}
+              </div>
 
-      {/* 右侧调整把手 */}
-      <ResizeHandle onResize={handleRightResize} direction="right" />
+              <div className="relative flex h-full flex-shrink-0 items-stretch">
+                <ResizeHandle onResize={handleRightResize} direction="right" visibleLine />
+              </div>
 
-      {/* 右侧栏 */}
-      <div
-        className="flex-shrink-0 h-full overflow-hidden"
-        style={{ width: rightWidth }}
-      >
-        {rightPanel}
+              <div
+                className="relative flex-shrink-0 overflow-hidden border-l border-[#ebe5dc]"
+                style={{ width: rightWidth }}
+              >
+                {rightPanel}
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </div>
   )

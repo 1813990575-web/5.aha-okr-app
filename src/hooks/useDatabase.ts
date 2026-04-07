@@ -43,6 +43,18 @@ export interface ObjectiveItem {
   status?: number
 }
 
+interface ItemLocation {
+  item: Item
+  siblings: Item[]
+}
+
+export type ReorderPreviewPosition = 'before' | 'after' | null
+
+export interface ReorderPreviewTarget {
+  overId: string | null
+  position: ReorderPreviewPosition
+}
+
 // 重置级别类型
 export type ResetLevel = 'none' | 'objectives' | 'keyresults' | 'todos'
 
@@ -672,6 +684,136 @@ export function useDatabase() {
     }
   }, [findParentId, toggleExpand])
 
+  const getItemLocation = useCallback((itemId: string): ItemLocation | null => {
+    const objective = allObjectives.find((obj) => obj.id === itemId)
+    if (objective) {
+      return {
+        item: objective,
+        siblings: [...allObjectives].sort((a, b) => a.sort_order - b.sort_order),
+      }
+    }
+
+    for (const [, krs] of krMap) {
+      const found = krs.find((kr) => kr.id === itemId)
+      if (found) {
+        return {
+          item: found,
+          siblings: [...krs].sort((a, b) => a.sort_order - b.sort_order),
+        }
+      }
+    }
+
+    for (const [, todos] of todoMap) {
+      const found = todos.find((todo) => todo.id === itemId)
+      if (found) {
+        return {
+          item: found,
+          siblings: [...todos].sort((a, b) => a.sort_order - b.sort_order),
+        }
+      }
+    }
+
+    return null
+  }, [allObjectives, krMap, todoMap])
+
+  const reorderItems = useCallback(async (
+    activeId: string,
+    overId: string,
+    position: ReorderPreviewPosition = 'before'
+  ): Promise<boolean> => {
+    if (!activeId || !overId || activeId === overId) return false
+
+    const activeLocation = getItemLocation(activeId)
+    const overLocation = getItemLocation(overId)
+
+    if (!activeLocation || !overLocation) return false
+
+    const { item: activeItem, siblings } = activeLocation
+    const { item: overItem } = overLocation
+
+    const sameLevelGroup =
+      activeItem.type === overItem.type &&
+      activeItem.parent_id === overItem.parent_id
+
+    if (!sameLevelGroup) return false
+
+    const oldIndex = siblings.findIndex((item) => item.id === activeId)
+    const withoutActive = siblings.filter((item) => item.id !== activeId)
+    const overIndex = withoutActive.findIndex((item) => item.id === overId)
+
+    if (oldIndex === -1 || overIndex === -1) return false
+
+    const insertIndex = position === 'after' ? overIndex + 1 : overIndex
+    const reordered = [...withoutActive]
+    reordered.splice(insertIndex, 0, activeItem)
+
+    const originalOrder = siblings.map((item) => item.id).join('|')
+    const nextOrder = reordered.map((item) => item.id).join('|')
+
+    if (originalOrder === nextOrder) return false
+
+    try {
+      if (isElectronAPIAvailable()) {
+        await Promise.all(
+          reordered.map((item, index) =>
+            (window as any).electronAPI.database.updateItemSortOrder(item.id, index)
+          )
+        )
+      }
+
+      await loadBaseData()
+      return true
+    } catch (err) {
+      console.error('[useDatabase] 同层级排序失败:', err)
+      return false
+    }
+  }, [getItemLocation, loadBaseData])
+
+  const getReorderPreviewTarget = useCallback((
+    activeId: string,
+    pointerY?: number | null
+  ): ReorderPreviewTarget => {
+    if (!activeId || pointerY == null || typeof document === 'undefined') {
+      return { overId: null, position: null }
+    }
+
+    const activeLocation = getItemLocation(activeId)
+    if (!activeLocation) return { overId: null, position: null }
+
+    const visibleSiblings = activeLocation.siblings.filter((item) => item.id !== activeId)
+    const siblingRects = visibleSiblings
+      .map((item) => {
+        const el = document.querySelector<HTMLElement>(`[data-sidebar-sort-id="${item.id}"]`)
+        if (!el) return null
+        const rect = el.getBoundingClientRect()
+        return {
+          id: item.id,
+          top: rect.top,
+          bottom: rect.bottom,
+          midpoint: rect.top + rect.height / 2,
+        }
+      })
+      .filter(Boolean) as Array<{ id: string; top: number; bottom: number; midpoint: number }>
+
+    if (siblingRects.length === 0) {
+      return { overId: null, position: null }
+    }
+
+    if (pointerY <= siblingRects[0].midpoint) {
+      return { overId: siblingRects[0].id, position: 'before' }
+    }
+
+    for (let i = 0; i < siblingRects.length - 1; i += 1) {
+      const current = siblingRects[i]
+      const next = siblingRects[i + 1]
+      if (pointerY > current.midpoint && pointerY <= next.midpoint) {
+        return { overId: next.id, position: 'before' }
+      }
+    }
+
+    return { overId: siblingRects[siblingRects.length - 1].id, position: 'after' }
+  }, [getItemLocation])
+
   return {
     items,
     loading,
@@ -690,5 +832,7 @@ export function useDatabase() {
     refresh: loadBaseData,
     expandAncestors,
     findParentId,
+    reorderItems,
+    getReorderPreviewTarget,
   }
 }

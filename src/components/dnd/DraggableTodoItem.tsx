@@ -40,6 +40,7 @@ export const DraggableTodoItem: React.FC<DraggableTodoItemProps> = ({
       <div
         {...attributes}
         {...listeners}
+        onPointerDownCapture={(e) => e.stopPropagation()}
         className="
           absolute right-3 top-1/2 -translate-y-1/2 z-10
           w-8 h-8 flex items-center justify-center

@@ -150,7 +150,11 @@ function loadFromFile() {
     dataFilePath = filePath;
     if (fs.existsSync(filePath)) {
       const data = fs.readFileSync(filePath, "utf-8");
-      memoryCache = JSON.parse(data);
+      const parsed = JSON.parse(data);
+      memoryCache = {
+        items: parsed.items || [],
+        dailyTasks: (parsed.dailyTasks || []).map(normalizeDailyTask)
+      };
       console.log("[Store] 从文件加载数据成功:", filePath);
     } else {
       console.log("[Store] 数据文件不存在，使用默认空数据:", filePath);
@@ -187,6 +191,32 @@ function saveToFile() {
       pendingSave = false;
     }
   }, 500);
+}
+function inferDailyTaskEntryType(task) {
+  if (task.entryType) return task.entryType;
+  const linkedId = task.sourceItemId ?? task.linkedGoalId;
+  if (!linkedId) return "manual";
+  if (task.origin === "manual") return "manual";
+  return "todo";
+}
+function normalizeDailyTask(task) {
+  const linkedGoalId = task.linkedGoalId ?? null;
+  const sourceItemId = task.sourceItemId ?? linkedGoalId;
+  const origin = task.origin ?? (linkedGoalId ? "okr" : "manual");
+  return {
+    id: task.id || generateUUID(),
+    content: task.content || "",
+    isDone: !!task.isDone,
+    date: task.date || getTodayString(),
+    sort_order: typeof task.sort_order === "number" ? task.sort_order : 0,
+    linkedGoalId,
+    sourceItemId,
+    entryType: inferDailyTaskEntryType({ ...task, linkedGoalId, sourceItemId, origin }),
+    origin,
+    color: task.color ?? null,
+    created_at: task.created_at || getCurrentTimestamp(),
+    updated_at: task.updated_at || getCurrentTimestamp()
+  };
 }
 function forceSyncSave() {
   try {
@@ -352,11 +382,16 @@ function getAllDailyTasks() {
     console.error("[Store] 无法获取 DailyTasks，Store 未初始化");
     return [];
   }
-  return memoryCache.dailyTasks || [];
+  return (memoryCache.dailyTasks || []).map(normalizeDailyTask);
 }
 function getDailyTasksByDate(date) {
   const tasks = getAllDailyTasks();
-  return tasks.filter((task) => task.date === date).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  return tasks.filter((task) => task.date === date).sort((a, b) => {
+    const aOrder = typeof a.sort_order === "number" ? a.sort_order : Number.MAX_SAFE_INTEGER;
+    const bOrder = typeof b.sort_order === "number" ? b.sort_order : Number.MAX_SAFE_INTEGER;
+    if (aOrder !== bOrder) return aOrder - bOrder;
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  });
 }
 function getDailyTaskById(id) {
   const tasks = getAllDailyTasks();
@@ -367,12 +402,12 @@ function createDailyTask(data) {
     console.error("[Store] 无法创建 DailyTask，Store 未初始化");
     throw new Error("Store not initialized");
   }
-  const newTask = {
+  const newTask = normalizeDailyTask({
     ...data,
     id: generateUUID(),
     created_at: getCurrentTimestamp(),
     updated_at: getCurrentTimestamp()
-  };
+  });
   memoryCache.dailyTasks = [newTask, ...memoryCache.dailyTasks];
   saveToFile();
   console.log("[Store] DailyTask 创建成功:", newTask.id);
@@ -390,9 +425,9 @@ function updateDailyTask(id, updates) {
     ...updates,
     updated_at: getCurrentTimestamp()
   };
-  memoryCache.dailyTasks[index] = updatedTask;
+  memoryCache.dailyTasks[index] = normalizeDailyTask(updatedTask);
   saveToFile();
-  return updatedTask;
+  return memoryCache.dailyTasks[index];
 }
 function deleteDailyTask(id) {
   if (!isInitialized) {

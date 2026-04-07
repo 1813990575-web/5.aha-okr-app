@@ -27,7 +27,10 @@ export interface DailyTask {
   content: string
   isDone: boolean
   date: string // YYYY-MM-DD
+  sort_order: number
   linkedGoalId: string | null // 关联的 OKR 项 ID
+  entryType?: 'manual' | 'objective' | 'kr' | 'todo'
+  sourceItemId?: string | null
   origin?: string | null // 来源：'okr' | 'manual' | null
   color?: string | null // 关联项的主题色
   created_at: string
@@ -118,7 +121,11 @@ function loadFromFile(): void {
     
     if (fs.existsSync(filePath)) {
       const data = fs.readFileSync(filePath, 'utf-8')
-      memoryCache = JSON.parse(data)
+      const parsed = JSON.parse(data)
+      memoryCache = {
+        items: parsed.items || [],
+        dailyTasks: (parsed.dailyTasks || []).map(normalizeDailyTask),
+      }
       console.log('[Store] 从文件加载数据成功:', filePath)
     } else {
       console.log('[Store] 数据文件不存在，使用默认空数据:', filePath)
@@ -170,6 +177,37 @@ function saveToFile(): void {
       pendingSave = false
     }
   }, 500)
+}
+
+function inferDailyTaskEntryType(task: Partial<DailyTask>): NonNullable<DailyTask['entryType']> {
+  if (task.entryType) return task.entryType
+
+  const linkedId = task.sourceItemId ?? task.linkedGoalId
+  if (!linkedId) return 'manual'
+
+  if (task.origin === 'manual') return 'manual'
+  return 'todo'
+}
+
+function normalizeDailyTask(task: Partial<DailyTask>): DailyTask {
+  const linkedGoalId = task.linkedGoalId ?? null
+  const sourceItemId = task.sourceItemId ?? linkedGoalId
+  const origin = task.origin ?? (linkedGoalId ? 'okr' : 'manual')
+
+  return {
+    id: task.id || generateUUID(),
+    content: task.content || '',
+    isDone: !!task.isDone,
+    date: task.date || getTodayString(),
+    sort_order: typeof task.sort_order === 'number' ? task.sort_order : 0,
+    linkedGoalId,
+    sourceItemId,
+    entryType: inferDailyTaskEntryType({ ...task, linkedGoalId, sourceItemId, origin }),
+    origin,
+    color: task.color ?? null,
+    created_at: task.created_at || getCurrentTimestamp(),
+    updated_at: task.updated_at || getCurrentTimestamp(),
+  }
 }
 
 /**
@@ -448,7 +486,7 @@ export function getAllDailyTasks(): DailyTask[] {
     console.error('[Store] 无法获取 DailyTasks，Store 未初始化')
     return []
   }
-  return memoryCache.dailyTasks || []
+  return (memoryCache.dailyTasks || []).map(normalizeDailyTask)
 }
 
 /**
@@ -458,7 +496,12 @@ export function getDailyTasksByDate(date: string): DailyTask[] {
   const tasks = getAllDailyTasks()
   return tasks
     .filter(task => task.date === date)
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .sort((a, b) => {
+      const aOrder = typeof a.sort_order === 'number' ? a.sort_order : Number.MAX_SAFE_INTEGER
+      const bOrder = typeof b.sort_order === 'number' ? b.sort_order : Number.MAX_SAFE_INTEGER
+      if (aOrder !== bOrder) return aOrder - bOrder
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    })
 }
 
 /**
@@ -478,12 +521,12 @@ export function createDailyTask(data: Omit<DailyTask, 'id' | 'created_at' | 'upd
     throw new Error('Store not initialized')
   }
   
-  const newTask: DailyTask = {
+  const newTask: DailyTask = normalizeDailyTask({
     ...data,
     id: generateUUID(),
     created_at: getCurrentTimestamp(),
     updated_at: getCurrentTimestamp(),
-  }
+  })
   
   // 新任务置顶
   memoryCache.dailyTasks = [newTask, ...memoryCache.dailyTasks]
@@ -513,10 +556,10 @@ export function updateDailyTask(
     ...updates,
     updated_at: getCurrentTimestamp(),
   }
-  
-  memoryCache.dailyTasks[index] = updatedTask
+
+  memoryCache.dailyTasks[index] = normalizeDailyTask(updatedTask)
   saveToFile()
-  return updatedTask
+  return memoryCache.dailyTasks[index]
 }
 
 /**

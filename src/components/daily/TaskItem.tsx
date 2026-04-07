@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react'
-import { Check, Trash2, Link2, CalendarArrowDown } from 'lucide-react'
+import { Check, Trash2, CalendarArrowDown } from 'lucide-react'
 import type { DailyTask } from '../../store/index'
 
 interface TaskItemProps {
@@ -14,6 +14,8 @@ interface TaskItemProps {
   isSelected?: boolean
   isLinked?: boolean
   isPastDate?: boolean
+  isSorting?: boolean
+  showSortInsertion?: boolean
 }
 
 export const TaskItem: React.FC<TaskItemProps> = ({
@@ -22,15 +24,16 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   onDelete,
   onUpdateContent,
   onMoveToToday,
-  linkedItemTitle,
   onClick,
   isHighlighted,
   isSelected,
   isLinked,
   isPastDate,
+  isSorting = false,
+  showSortInsertion = false,
 }) => {
   // 判断是否为 OKR 派生项
-  const isOkrDerived = task.origin === 'okr' || task.linkedGoalId
+  const isOkrDerived = (task.entryType ?? (task.linkedGoalId ? 'todo' : 'manual')) !== 'manual'
 
   // 获取主题色
   const themeColor = task.color || (isOkrDerived ? '#007AFF' : null)
@@ -132,14 +135,27 @@ export const TaskItem: React.FC<TaskItemProps> = ({
         onClick={onClick}
         onContextMenu={handleContextMenu}
         onDoubleClick={handleDoubleClick}
+        data-mainboard-task-id={task.id}
         className={`
-          group flex items-center gap-3 px-12 py-4 mb-2
+          group relative mx-6 mb-1.5 flex items-center gap-3 rounded-2xl border border-transparent px-6 py-3.5
           transition-all duration-300 cursor-pointer
           ${task.isDone ? 'opacity-50' : ''}
-          ${isHighlighted ? 'bg-blue-50 animate-pulse-highlight' : ''}
-          ${isSelected ? 'bg-gray-100' : ''}
+          ${isHighlighted ? 'bg-blue-50/80 animate-pulse-highlight border-blue-100' : ''}
+          ${isSelected ? 'bg-[#f3f5f7] border-[#e4e7eb]' : 'hover:bg-[#f7f8fa]'}
         `}
+        style={{
+          boxShadow: isSorting ? 'inset 0 0 0 1px rgba(125,108,242,0.1)' : undefined,
+        }}
       >
+        {showSortInsertion && (
+          <div className="pointer-events-none absolute left-4 right-4 top-0 z-20 -translate-y-1/2">
+            <div className="relative flex items-center">
+              <span className="h-[5px] w-[5px] flex-shrink-0 rounded-full bg-[#7d6cf2]" />
+              <span className="mx-1 h-[2px] flex-1 rounded-full bg-[#7d6cf2]" />
+              <span className="h-[5px] w-[5px] flex-shrink-0 rounded-full bg-[#7d6cf2]" />
+            </div>
+          </div>
+        )}
         {/* 勾选框 - 方圆美学 */}
         <button
           onClick={(e) => {
@@ -166,24 +182,6 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           {task.isDone && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
         </button>
 
-        {/* 关联信息 - 放在前面，使用目标颜色，固定显示10个字 */}
-        {(linkedItemTitle || task.linkedGoalId) && (
-          <div className="flex items-center gap-1 flex-shrink-0">
-            <Link2 className="w-3 h-3 flex-shrink-0" style={{ color: themeColor || '#9CA3AF' }} />
-            <span
-              className="text-[14px] font-medium whitespace-nowrap"
-              style={{ color: themeColor || '#9CA3AF' }}
-              title={linkedItemTitle || '已关联目标'}
-            >
-              {linkedItemTitle
-                ? linkedItemTitle.length > 10
-                  ? linkedItemTitle.slice(0, 10) + '...'
-                  : linkedItemTitle
-                : '已关联目标'}
-            </span>
-          </div>
-        )}
-
         {/* 内容区域 - todo 文字使用灰色，单行显示 */}
         <div className="flex-1 min-w-0 overflow-hidden">
           {isEditing ? (
@@ -204,7 +202,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
                 text-[14px] font-medium transition-all duration-150 truncate whitespace-nowrap overflow-hidden
                 ${task.isDone
                   ? 'text-gray-400 line-through'
-                  : 'text-gray-600'
+                  : 'text-[#48515d]'
                 }
               `}
               title={task.content}

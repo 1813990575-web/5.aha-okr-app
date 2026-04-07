@@ -5,9 +5,39 @@ import { Timeline } from './components/Timeline'
 import { ResizableLayout } from './components/ResizableLayout'
 import { SidebarThemeProvider } from './contexts/SidebarThemeContext'
 import { DragProvider, type DragItem } from './components/dnd/DragProvider'
+import { AppSidebarRail, type AppSection } from './components/AppSidebarRail'
+import { PlaceholderWorkspace } from './components/PlaceholderWorkspace'
+import { SettingsWorkspace } from './components/SettingsWorkspace'
+import { JournalWorkspace } from './components/journal/JournalWorkspace'
 import type { DailyTask } from './store/index'
 
+const WORKSPACE_THEME_PRESETS = [
+  { id: 'milk-white', label: '奶白灰', background: 'linear-gradient(180deg,#fbfbfa,#f5f5f3)' },
+  { id: 'mist-blue', label: '冷灰蓝', background: 'linear-gradient(180deg,#eff2f5,#e9edf2)' },
+  { id: 'moon-gray', label: '月光灰', background: 'linear-gradient(180deg,#eef0f2,#e6e8ec)' },
+  { id: 'graphite-mist', label: '石墨雾灰', background: 'linear-gradient(180deg,#e8eaee,#dde1e7)' },
+  { id: 'soft-concrete', label: '浅混凝土', background: 'linear-gradient(180deg,#e7e8e6,#dddfdc)' },
+  { id: 'periwinkle', label: '长春花灰紫', background: 'linear-gradient(180deg,#b2b8ea,#939cdd)' },
+  { id: 'soft-lilac', label: '雾紫', background: 'linear-gradient(180deg,#d7cdf7,#beb1ef)' },
+  { id: 'dusty-cobalt', label: '钴蓝灰', background: 'linear-gradient(180deg,#4f79e8,#3d61bf)' },
+  { id: 'muted-mustard', label: '芥末灰黄', background: 'linear-gradient(180deg,#f3c55b,#e0ae3b)' },
+  { id: 'powder-pink', label: '灰粉', background: 'linear-gradient(180deg,#efb4c9,#de94af)' },
+  { id: 'dusty-coral', label: '灰珊瑚', background: 'linear-gradient(180deg,#ef7864,#df6252)' },
+  { id: 'midnight-slate', label: '深夜石板', background: 'linear-gradient(180deg,#2c313d,#20242d)' },
+  { id: 'graphite-night', label: '石墨夜', background: 'linear-gradient(180deg,#3a3f49,#2a2e36)' },
+  { id: 'ink-blue-black', label: '墨蓝黑', background: 'linear-gradient(180deg,#243041,#1a2330)' },
+  { id: 'plum-night', label: '夜梅紫', background: 'linear-gradient(180deg,#433a52,#2f283a)' },
+  { id: 'forest-night', label: '深林夜绿', background: 'linear-gradient(180deg,#223830,#172721)' },
+] as const
+
 function App() {
+  const [activeSection, setActiveSection] = useState<AppSection>('today')
+  const [sliderStyle, setSliderStyle] = useState<'bead' | 'pill'>('bead')
+  const [workspaceThemeId, setWorkspaceThemeId] = useState<(typeof WORKSPACE_THEME_PRESETS)[number]['id']>('milk-white')
+  const [workspaceThemeMenu, setWorkspaceThemeMenu] = useState<{ x: number; y: number } | null>(null)
+  const [todayViewMode, setTodayViewMode] = useState<'daily' | 'objective-board'>('daily')
+  const [focusedObjectiveBoard, setFocusedObjectiveBoard] = useState<{ id: string; title: string; color?: string | null } | null>(null)
+
   // 左侧选中状态 - 用于中间面板点击后联动左侧选中
   const [activeObjective, setActiveObjective] = useState<string>('obj-1')
 
@@ -20,6 +50,8 @@ function App() {
 
   // 新拖入任务的高亮状态
   const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null)
+  const [highlightedSourceItemIds, setHighlightedSourceItemIds] = useState<string[]>([])
+  const [dragNotice, setDragNotice] = useState<string | null>(null)
 
   // Sidebar 刷新触发器 - 用于中间面板勾选后刷新左侧状态
   const [sidebarRefreshTrigger, setSidebarRefreshTrigger] = useState<number>(0)
@@ -46,92 +78,192 @@ function App() {
     setShouldScrollToActive(shouldScroll)
   }, [])
 
+  const handleExecutionItemsChanged = useCallback(async () => {
+    setSidebarRefreshTrigger(prev => prev + 1)
+    await loadTasks()
+  }, [loadTasks])
+
+  const handleOpenObjectiveBoard = useCallback((objective: { id: string; title: string; color?: string | null }) => {
+    setActiveObjective(objective.id)
+    setShouldScrollToActive(false)
+    setFocusedObjectiveBoard((current) => {
+      const isSame = current?.id === objective.id
+      setTodayViewMode(isSame ? 'daily' : 'objective-board')
+      return isSame ? null : objective
+    })
+  }, [])
+
+  const showTaskFeedback = useCallback((taskId: string, notice?: string, sourceItemIds?: Array<string | null | undefined>) => {
+    setHighlightedTaskId(taskId)
+    window.setTimeout(() => setHighlightedTaskId(null), 2200)
+    const normalizedSourceIds = Array.from(new Set((sourceItemIds || []).filter(Boolean) as string[]))
+    if (normalizedSourceIds.length > 0) {
+      setHighlightedSourceItemIds(normalizedSourceIds)
+      window.setTimeout(() => {
+        setHighlightedSourceItemIds((current) =>
+          current.some((id) => normalizedSourceIds.includes(id)) ? [] : current
+        )
+      }, 2200)
+    }
+
+    window.requestAnimationFrame(() => {
+      const element = document.querySelector(`[data-mainboard-task-id="${taskId}"]`)
+      if (element instanceof HTMLElement) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      }
+    })
+
+    if (notice) {
+      setDragNotice(notice)
+      window.setTimeout(() => setDragNotice(null), 2200)
+    }
+  }, [])
+
+  const createLinkedExecutionEntry = useCallback(async (
+    item: { id: string; title: string; color?: string | null; type?: DragItem['type'] },
+    source: 'menu' | 'drag'
+  ) => {
+    if (todayViewMode === 'daily' && item.type === 'O') {
+      setDragNotice('当前执行区最高只接受关键结果，请改为拖入关键结果')
+      window.setTimeout(() => setDragNotice(null), 2200)
+      return
+    }
+
+    const allItems = await window.electronAPI.database.getAllItems()
+    const getDescendantIds = (rootId: string): string[] => {
+      const descendants: string[] = []
+      const stack = [rootId]
+
+      while (stack.length > 0) {
+        const currentId = stack.pop()!
+        const children = allItems.filter((candidate: { id: string; parent_id: string | null }) => candidate.parent_id === currentId)
+        for (const child of children) {
+          descendants.push(child.id)
+          stack.push(child.id)
+        }
+      }
+
+      return descendants
+    }
+
+    const getAncestorIds = (leafId: string): string[] => {
+      const ancestors: string[] = []
+      let current = allItems.find((candidate: { id: string }) => candidate.id === leafId)
+      while (current?.parent_id) {
+        ancestors.push(current.parent_id)
+        current = allItems.find((candidate: { id: string }) => candidate.id === current?.parent_id)
+      }
+      return ancestors
+    }
+
+    const sourceItemId = item.id
+    const existingTask = tasks.find(
+      (task) => (task.sourceItemId ?? task.linkedGoalId) === sourceItemId
+    )
+    if (existingTask) {
+      showTaskFeedback(existingTask.id, '您已加入了代办，不需要重复拖动', [sourceItemId])
+      return
+    }
+
+    const ancestorIds = getAncestorIds(sourceItemId)
+    const existingAncestorTask = tasks.find((task) => {
+      const taskSourceId = task.sourceItemId ?? task.linkedGoalId
+      return !!taskSourceId && ancestorIds.includes(taskSourceId)
+    })
+    if (existingAncestorTask) {
+      showTaskFeedback(existingAncestorTask.id, '相关内容已在更高层级卡片中展示', [sourceItemId])
+      return
+    }
+
+    const descendantIds = getDescendantIds(sourceItemId)
+    const descendantTasks = tasks.filter((task) => {
+      const taskSourceId = task.sourceItemId ?? task.linkedGoalId
+      return !!taskSourceId && descendantIds.includes(taskSourceId)
+    })
+
+    const dateKey = formatDateKey(selectedDate)
+    const topSortOrder =
+      tasks.length > 0
+        ? Math.min(...tasks.map((task) => task.sort_order ?? 0)) - 1
+        : 0
+
+    const entryTypeMap: Record<NonNullable<DragItem['type']>, NonNullable<DailyTask['entryType']>> = {
+      O: 'objective',
+      KR: 'kr',
+      TODO: 'todo',
+    }
+
+    const newTask = await window.electronAPI.dailyTasks.createTask({
+      content: item.title,
+      isDone: false,
+      date: dateKey,
+      sort_order: topSortOrder,
+      linkedGoalId: sourceItemId,
+      sourceItemId,
+      entryType: item.type ? entryTypeMap[item.type] : 'todo',
+      origin: 'okr',
+      color: item.color,
+    })
+
+    if (descendantTasks.length > 0) {
+      await Promise.all(
+        descendantTasks.map((task) => window.electronAPI.dailyTasks.deleteTask(task.id))
+      )
+    }
+
+    console.log(`[App] ${source === 'drag' ? '拖拽' : '菜单'}创建执行项成功:`, newTask)
+    setTasks(prev => {
+      const descendantTaskIds = new Set(descendantTasks.map((task) => task.id))
+      return [newTask, ...prev.filter((task) => !descendantTaskIds.has(task.id))]
+    })
+    showTaskFeedback(
+      newTask.id,
+      descendantTasks.length > 0 ? '目标相关内容已合并至目标卡片' : undefined,
+      descendantTasks.length > 0
+        ? descendantTasks.map((task) => task.sourceItemId ?? task.linkedGoalId)
+        : []
+    )
+  }, [selectedDate, showTaskFeedback, tasks, todayViewMode])
+
   // 处理加入今日待办 - 从左侧右键菜单添加
-  const handleAddToDailyTasks = useCallback(async (item: { id: string; title: string; color?: string | null }) => {
+  const handleAddToDailyTasks = useCallback(async (item: { id: string; title: string; color?: string | null; type?: DragItem['type'] }) => {
     console.log('[App] 加入今日待办:', item)
 
     try {
-      const dateKey = formatDateKey(selectedDate)
-
-      // 检查今日是否已存在相同的 linkedGoalId
-      const alreadyExists = tasks.some(t => t.linkedGoalId === item.id)
-      if (alreadyExists) {
-        console.log('[App] 今日已存在该任务，跳过:', item.id)
-        return
-      }
-
-      // 创建新的 dailyTask
-      const newTask = await window.electronAPI.dailyTasks.createTask({
-        content: item.title,
-        isDone: false,
-        date: dateKey,
-        linkedGoalId: item.id,
-        origin: 'okr',
-        color: item.color,
-      })
-
-      console.log('[App] 任务创建成功:', newTask)
-
-      // 关键：更新状态，触发 UI 重绘（置顶 - unshift）
-      setTasks(prev => [newTask, ...prev])
-
-      // 高亮新加入的任务，让用户立即看到
-      setHighlightedTaskId(newTask.id)
-      // 2秒后取消高亮
-      setTimeout(() => setHighlightedTaskId(null), 2000)
+      await createLinkedExecutionEntry(item, 'menu')
     } catch (error) {
       console.error('[App] 创建任务失败:', error)
     }
-  }, [selectedDate, tasks])
+  }, [createLinkedExecutionEntry])
 
   // 处理拖拽结束 - 将 OKR 项拖入中间面板
   const handleDragEnd = useCallback(async (item: DragItem) => {
     console.log('[App] 拖拽结束:', item)
 
     try {
-      const dateKey = formatDateKey(selectedDate)
-
-      // 检查今日是否已存在相同的 linkedGoalId
-      const alreadyExists = tasks.some(t => t.linkedGoalId === item.id)
-      if (alreadyExists) {
-        console.log('[App] 今日已存在该任务，跳过:', item.id)
-        return
-      }
-
-      // 创建新的 dailyTask
-      const newTask = await window.electronAPI.dailyTasks.createTask({
-        content: item.title,
-        isDone: false,
-        date: dateKey,
-        linkedGoalId: item.id,
-        origin: 'okr',
-        color: item.color,
-      })
-
-      console.log('[App] 任务创建成功:', newTask)
-
-      // 关键：更新状态，触发 UI 重绘（置顶 - unshift）
-      setTasks(prev => [newTask, ...prev])
-
-      // 高亮新拖入的任务，让用户立即看到
-      setHighlightedTaskId(newTask.id)
-      // 2秒后取消高亮
-      setTimeout(() => setHighlightedTaskId(null), 2000)
+      await createLinkedExecutionEntry(item, 'drag')
     } catch (error) {
       console.error('[App] 创建任务失败:', error)
     }
-  }, [selectedDate, tasks])
+  }, [createLinkedExecutionEntry])
 
   // 处理手动添加任务
   const handleCreateTask = useCallback(async (content: string) => {
     console.log("[DIAG] App handleCreateTask called with:", content)
     try {
       const dateKey = formatDateKey(selectedDate)
+      const bottomSortOrder =
+        tasks.length > 0
+          ? Math.max(...tasks.map((task) => task.sort_order ?? 0)) + 1
+          : 0
       const newTask = await window.electronAPI.dailyTasks.createTask({
         content,
         isDone: false,
         date: dateKey,
+        sort_order: bottomSortOrder,
         linkedGoalId: null,
+        sourceItemId: null,
+        entryType: 'manual',
         origin: 'manual',
       })
       console.log("[DIAG] Task created, updating state with:", newTask)
@@ -144,7 +276,31 @@ function App() {
     } catch (error) {
       console.error('[App] 创建任务失败:', error)
     }
-  }, [selectedDate])
+  }, [selectedDate, tasks])
+
+  const handleReorderTasks = useCallback(async (orderedTaskIds: string[]) => {
+    try {
+      const taskMap = new Map(tasks.map((task) => [task.id, task]))
+      const reorderedTasks = orderedTaskIds
+        .map((id, index) => {
+          const task = taskMap.get(id)
+          return task ? { ...task, sort_order: index } : null
+        })
+        .filter(Boolean) as DailyTask[]
+
+      setTasks(reorderedTasks)
+
+      await Promise.all(
+        reorderedTasks.map((task, index) =>
+          window.electronAPI.dailyTasks.updateTask(task.id, { sort_order: index })
+        )
+      )
+
+    } catch (error) {
+      console.error('[App] 重排中间待办失败:', error)
+      await loadTasks()
+    }
+  }, [tasks, loadTasks])
 
   // 处理切换任务状态
   const handleToggleTask = useCallback(async (id: string) => {
@@ -222,39 +378,123 @@ function App() {
     return selected < today
   }, [selectedDate])
 
+  const isPlaceholderSection = activeSection !== 'today'
+  const workspaceBackground =
+    WORKSPACE_THEME_PRESETS.find((preset) => preset.id === workspaceThemeId)?.background ??
+    WORKSPACE_THEME_PRESETS[0].background
+
+  useEffect(() => {
+    if (!workspaceThemeMenu) return
+
+    const handleClose = () => setWorkspaceThemeMenu(null)
+    document.addEventListener('click', handleClose)
+    return () => document.removeEventListener('click', handleClose)
+  }, [workspaceThemeMenu])
+
   return (
     <SidebarThemeProvider>
       <DragProvider onDragEnd={handleDragEnd}>
-        <ResizableLayout
-          leftPanel={<Sidebar activeObjective={activeObjective} onSetActive={handleSetActiveObjective} onAddToDailyTasks={handleAddToDailyTasks} refreshTrigger={sidebarRefreshTrigger} shouldScrollToActive={shouldScrollToActive} />}
-          centerPanel={
-            <MainBoard
-              tasks={tasks}
-              selectedDate={selectedDate}
-              onDateChange={setSelectedDate}
-              onCreateTask={handleCreateTask}
-              onToggleTask={handleToggleTask}
-              onDeleteTask={handleDeleteTask}
-              onUpdateTaskContent={handleUpdateTaskContent}
-              onMoveTaskToToday={handleMoveTaskToToday}
-              onSetActiveObjective={handleSetActiveObjective}
-              highlightedTaskId={highlightedTaskId}
-              isPastDate={isPastDate()}
-            />
-          }
-          rightPanel={<Timeline />}
-          leftPanelConfig={{
-            minWidth: 200,
-            defaultWidth: 380,
-            maxWidth: 500,
-          }}
-          rightPanelConfig={{
-            minWidth: 250,
-            defaultWidth: 300,
-            maxWidth: 500,
-          }}
-        />
+        <div className="h-full w-full bg-transparent">
+          <div className="flex h-full w-full overflow-hidden">
+            <AppSidebarRail activeSection={activeSection} onSelect={setActiveSection} />
+
+            <div className="min-w-0 flex-1">
+              {activeSection === 'settings' ? (
+                <SettingsWorkspace
+                  sliderStyle={sliderStyle}
+                  onSliderStyleChange={setSliderStyle}
+                />
+              ) : activeSection === 'insights' ? (
+                <JournalWorkspace />
+              ) : isPlaceholderSection ? (
+                <PlaceholderWorkspace section={activeSection} />
+              ) : (
+                <ResizableLayout
+                  leftPanel={<Sidebar activeObjective={activeObjective} onSetActive={handleSetActiveObjective} onAddToDailyTasks={handleAddToDailyTasks} onOpenObjectiveBoard={handleOpenObjectiveBoard} refreshTrigger={sidebarRefreshTrigger} shouldScrollToActive={shouldScrollToActive} sliderStyle={sliderStyle} onOpenWorkspaceThemeMenu={setWorkspaceThemeMenu} />}
+                  centerPanel={
+                    <MainBoard
+                      tasks={tasks}
+                      selectedDate={selectedDate}
+                      onDateChange={setSelectedDate}
+                      onCreateTask={handleCreateTask}
+                      onToggleTask={handleToggleTask}
+                      onDeleteTask={handleDeleteTask}
+                      onUpdateTaskContent={handleUpdateTaskContent}
+                      onMoveTaskToToday={handleMoveTaskToToday}
+                      onSetActiveObjective={handleSetActiveObjective}
+                      highlightedTaskId={highlightedTaskId}
+                      highlightedSourceItemIds={highlightedSourceItemIds}
+                      isPastDate={isPastDate()}
+                      onReorderTasks={handleReorderTasks}
+                      onExecutionItemsChanged={handleExecutionItemsChanged}
+                    />
+                  }
+                  rightPanel={<Timeline />}
+                  fullWidthPanel={
+                    todayViewMode === 'objective-board' && focusedObjectiveBoard
+                      ? (
+                        <div
+                          className="h-full w-full bg-white"
+                          data-objective-board-id={focusedObjectiveBoard.id}
+                          aria-label={focusedObjectiveBoard.title}
+                        >
+                          <div className="h-full w-full" />
+                        </div>
+                      )
+                      : undefined
+                  }
+                  workspaceBackground={workspaceBackground}
+                  leftPanelConfig={{
+                    minWidth: 200,
+                    defaultWidth: 380,
+                    maxWidth: 500,
+                  }}
+                  rightPanelConfig={{
+                    minWidth: 250,
+                    defaultWidth: 300,
+                    maxWidth: 500,
+                  }}
+                />
+              )}
+            </div>
+          </div>
+          {workspaceThemeMenu && activeSection === 'today' && (
+            <div
+              className="fixed z-[100] max-h-[420px] min-w-[196px] overflow-y-auto rounded-2xl border border-black/[0.08] bg-white/92 p-2 shadow-[0_18px_50px_rgba(15,23,42,0.18)] backdrop-blur-xl"
+              style={{ left: workspaceThemeMenu.x, top: workspaceThemeMenu.y }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="px-2 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-black/32">
+                工作台底色
+              </div>
+              {WORKSPACE_THEME_PRESETS.map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => {
+                    setWorkspaceThemeId(preset.id)
+                    setWorkspaceThemeMenu(null)
+                  }}
+                  className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-black/[0.04]"
+                >
+                  <span
+                    className="h-5 w-5 rounded-full border border-black/10"
+                    style={{ background: preset.background }}
+                  />
+                  <span className="text-sm text-[#3f4754]">{preset.label}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </DragProvider>
+      {dragNotice && (
+        <div className="pointer-events-none fixed bottom-6 left-1/2 z-[120] -translate-x-1/2">
+          <div className="rounded-full border border-black/8 bg-white/92 px-4 py-2 text-[13px] font-medium text-[#4c5461] shadow-[0_12px_28px_rgba(15,23,42,0.12)] backdrop-blur-xl">
+            {dragNotice}
+          </div>
+        </div>
+      )}
     </SidebarThemeProvider>
   )
 }
