@@ -3,6 +3,7 @@ import { Sidebar } from '../../components/Sidebar'
 import { MainBoard } from '../../components/MainBoard'
 import { Timeline } from '../../components/Timeline'
 import { ResizableLayout } from '../../components/ResizableLayout'
+import { ObjectiveBoard } from '../../components/ObjectiveBoard'
 import type { DailyTask } from '../../store/index'
 
 interface OkrWorkspaceProps {
@@ -20,7 +21,8 @@ interface OkrWorkspaceProps {
   okrViewMode: 'daily' | 'objective-board'
   onSetActiveObjective: (itemId: string, shouldScroll?: boolean) => void
   onAddToDailyTasks: (item: { id: string; title: string; color?: string | null; type?: 'O' | 'KR' | 'TODO' }) => void | Promise<void>
-  onOpenObjectiveBoard: (objective: { id: string; title: string; color?: string | null }) => void
+  onToggleObjectiveBoardMode: (objective?: { id: string; title: string; color?: string | null }) => void
+  onOkrItemsChanged: () => void | Promise<void>
   onOpenWorkspaceThemeMenu: React.Dispatch<React.SetStateAction<{ x: number; y: number } | null>>
   onDateChange: (date: Date) => void
   onCreateTask: (content: string) => void | Promise<void>
@@ -49,7 +51,8 @@ export const OkrWorkspace: React.FC<OkrWorkspaceProps> = ({
   okrViewMode,
   onSetActiveObjective,
   onAddToDailyTasks,
-  onOpenObjectiveBoard,
+  onToggleObjectiveBoardMode,
+  onOkrItemsChanged,
   onOpenWorkspaceThemeMenu,
   onDateChange,
   onCreateTask,
@@ -74,7 +77,7 @@ export const OkrWorkspace: React.FC<OkrWorkspaceProps> = ({
       ) : null}
       <div className="min-h-0 flex-1">
         <ResizableLayout
-          leftPanel={<Sidebar activeObjective={activeObjective} onSetActive={onSetActiveObjective} onAddToDailyTasks={onAddToDailyTasks} onOpenObjectiveBoard={onOpenObjectiveBoard} refreshTrigger={sidebarRefreshTrigger} shouldScrollToActive={shouldScrollToActive} sliderStyle={sliderStyle} onOpenWorkspaceThemeMenu={onOpenWorkspaceThemeMenu} />}
+          leftPanel={<Sidebar activeObjective={activeObjective} onSetActive={onSetActiveObjective} onAddToDailyTasks={onAddToDailyTasks} onToggleObjectiveBoardMode={onToggleObjectiveBoardMode} okrViewMode={okrViewMode} refreshTrigger={sidebarRefreshTrigger} shouldScrollToActive={shouldScrollToActive} sliderStyle={sliderStyle} onOpenWorkspaceThemeMenu={onOpenWorkspaceThemeMenu} onOkrItemsChanged={onOkrItemsChanged} />}
           centerPanel={
             <MainBoard
               tasks={tasks}
@@ -92,6 +95,7 @@ export const OkrWorkspace: React.FC<OkrWorkspaceProps> = ({
               onReorderTasks={onReorderTasks}
               onExecutionItemsChanged={onExecutionItemsChanged}
               onSelectionTitleChange={setSelectedTaskNoteTarget}
+              okrRefreshTrigger={sidebarRefreshTrigger}
             />
           }
           rightPanel={
@@ -110,7 +114,11 @@ export const OkrWorkspace: React.FC<OkrWorkspaceProps> = ({
                   data-objective-board-id={focusedObjectiveBoard.id}
                   aria-label={focusedObjectiveBoard.title}
                 >
-                  <div className="h-full w-full" />
+                  <ObjectiveBoard
+                    objective={focusedObjectiveBoard}
+                    onObjectiveChanged={onExecutionItemsChanged}
+                    refreshTrigger={sidebarRefreshTrigger}
+                  />
                 </div>
               )
               : undefined

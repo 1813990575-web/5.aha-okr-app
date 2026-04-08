@@ -27,6 +27,7 @@ interface MainBoardProps {
   onReorderTasks?: (orderedTaskIds: string[]) => void | Promise<void>
   onExecutionItemsChanged?: () => void | Promise<void>
   onSelectionTitleChange?: (selection: { id: string; title: string } | null) => void
+  okrRefreshTrigger?: number
 }
 
 export const MainBoard: React.FC<MainBoardProps> = ({
@@ -45,6 +46,7 @@ export const MainBoard: React.FC<MainBoardProps> = ({
   onReorderTasks,
   onExecutionItemsChanged,
   onSelectionTitleChange,
+  okrRefreshTrigger,
 }) => {
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false)
   const [items, setItems] = useState<Item[]>([])
@@ -92,6 +94,11 @@ export const MainBoard: React.FC<MainBoardProps> = ({
     loadItems()
     loadAllTaskDates()
   }, [loadItems, loadAllTaskDates])
+
+  useEffect(() => {
+    if (okrRefreshTrigger === undefined) return
+    void loadItems()
+  }, [okrRefreshTrigger, loadItems])
 
   // 当任务变化时刷新日期集合
   useEffect(() => {

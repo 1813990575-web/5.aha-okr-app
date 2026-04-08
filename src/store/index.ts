@@ -18,6 +18,9 @@ export interface Item {
   sort_order: number
   total_focus_time: number
   color?: string | null
+  objective_icon_mode?: 'folder' | 'emoji' | 'countdown' | null
+  objective_icon_emoji?: string | null
+  objective_deadline_at?: string | null
   created_at: string
   updated_at: string
 }

@@ -89,13 +89,29 @@ function App() {
     await loadTasks()
   }, [loadTasks])
 
-  const handleOpenObjectiveBoard = useCallback((objective: { id: string; title: string; color?: string | null }) => {
-    setActiveObjective(objective.id)
-    setShouldScrollToActive(false)
-    setFocusedObjectiveBoard((current) => {
-      const isSame = current?.id === objective.id
-      setOkrViewMode(isSame ? 'daily' : 'objective-board')
-      return isSame ? null : objective
+  const handleOkrItemsChanged = useCallback(() => {
+    setSidebarRefreshTrigger(prev => prev + 1)
+  }, [])
+
+  const handleToggleObjectiveBoardMode = useCallback((objective?: { id: string; title: string; color?: string | null }) => {
+    setOkrViewMode((currentMode) => {
+      if (currentMode === 'objective-board') {
+        if (objective) {
+          setActiveObjective(objective.id)
+          setShouldScrollToActive(false)
+          setFocusedObjectiveBoard(objective)
+          return 'objective-board'
+        }
+        return 'daily'
+      }
+
+      if (objective) {
+        setActiveObjective(objective.id)
+        setShouldScrollToActive(false)
+        setFocusedObjectiveBoard(objective)
+      }
+
+      return 'objective-board'
     })
   }, [])
 
@@ -445,7 +461,8 @@ function App() {
                   okrViewMode={okrViewMode}
                   onSetActiveObjective={handleSetActiveObjective}
                   onAddToDailyTasks={handleAddToDailyTasks}
-                  onOpenObjectiveBoard={handleOpenObjectiveBoard}
+                  onToggleObjectiveBoardMode={handleToggleObjectiveBoardMode}
+                  onOkrItemsChanged={handleOkrItemsChanged}
                   onOpenWorkspaceThemeMenu={setWorkspaceThemeMenu}
                   onDateChange={setSelectedDate}
                   onCreateTask={handleCreateTask}

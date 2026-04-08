@@ -1,5 +1,5 @@
 {
-  "version": "1.0.5",
+  "version": "1.0.6",
   "downloadUrl": "https://github.com/1813990575-web/5.aha-okr-app/releases/latest",
-  "releaseNotes": "v1.0.5 更新内容：\n- 新增工作区结构与 Journal 能力\n- 优化 OKR 工作区与任务交互体验\n- 修复正式安装包可能误连开发环境的问题"
+  "releaseNotes": "v1.0.6 更新内容：\n- 新增 OKR 分栏模式与左侧模式切换入口\n- 打通左侧目录、分栏视图与执行区之间的关键同步逻辑\n- 优化顶部工具图标、列表结构与交互细节"
 }

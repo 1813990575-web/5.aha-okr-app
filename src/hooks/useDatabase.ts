@@ -26,6 +26,9 @@ export interface Item {
   sort_order: number
   total_focus_time: number
   color?: string | null
+  objective_icon_mode?: 'folder' | 'emoji' | 'countdown' | null
+  objective_icon_emoji?: string | null
+  objective_deadline_at?: string | null
   created_at: string
   updated_at: string
 }
@@ -40,6 +43,9 @@ export interface ObjectiveItem {
   dbId: string
   hasChildren?: boolean
   color?: string | null
+  objectiveIconMode?: 'folder' | 'emoji' | 'countdown' | null
+  objectiveIconEmoji?: string | null
+  objectiveDeadlineAt?: string | null
   status?: number
 }
 
@@ -95,6 +101,9 @@ function convertToObjectiveItem(
     dbId: item.id,
     hasChildren,
     color: item.color,
+    objectiveIconMode: item.objective_icon_mode ?? 'folder',
+    objectiveIconEmoji: item.objective_icon_emoji ?? null,
+    objectiveDeadlineAt: item.objective_deadline_at ?? null,
     status: item.status,
   }
 }
@@ -569,6 +578,18 @@ export function useDatabase() {
 
       await (window as any).electronAPI.database.updateItem(dbId, { status: newStatus })
 
+      if ((window as any).electronAPI?.dailyTasks?.getAllTasks) {
+        const allTasks = await (window as any).electronAPI.dailyTasks.getAllTasks()
+        const linkedTasks = allTasks.filter((task: { sourceItemId?: string | null; linkedGoalId?: string | null }) =>
+          (task.sourceItemId ?? task.linkedGoalId) === dbId
+        )
+        await Promise.all(
+          linkedTasks.map((task: { id: string }) =>
+            (window as any).electronAPI.dailyTasks.updateTask(task.id, { isDone: newStatus === 1 })
+          )
+        )
+      }
+
       // 更新本地状态
       setAllObjectives((prev) =>
         prev.map((obj) =>
@@ -620,6 +641,16 @@ export function useDatabase() {
       if (isElectronAPIAvailable()) {
         const result = await (window as any).electronAPI.database.deleteItem(id)
         deletedIds = result.deletedIds || []
+
+        if ((window as any).electronAPI?.dailyTasks?.getAllTasks) {
+          const allTasks = await (window as any).electronAPI.dailyTasks.getAllTasks()
+          const linkedTasks = allTasks.filter((task: { sourceItemId?: string | null; linkedGoalId?: string | null }) =>
+            deletedIds.includes((task.sourceItemId ?? task.linkedGoalId) || '')
+          )
+          await Promise.all(
+            linkedTasks.map((task: { id: string }) => (window as any).electronAPI.dailyTasks.deleteTask(task.id))
+          )
+        }
       } else {
         deletedIds = [id]
       }

@@ -44,6 +44,8 @@ export const Timeline: React.FC<TimelineProps> = ({ selectedId, selectedTitle, s
   const [now, setNow] = useState(() => new Date())
   const latestSelectedIdRef = useRef<string | null | undefined>(selectedId)
   const latestOnNoteChangeRef = useRef<TimelineProps['onNoteChange']>(onNoteChange)
+  const pendingSaveTimerRef = useRef<number | null>(null)
+  const latestEditorHtmlRef = useRef(selectedNote)
 
   useEffect(() => {
     latestSelectedIdRef.current = selectedId
@@ -52,6 +54,18 @@ export const Timeline: React.FC<TimelineProps> = ({ selectedId, selectedTitle, s
   useEffect(() => {
     latestOnNoteChangeRef.current = onNoteChange
   }, [onNoteChange])
+
+  useEffect(() => {
+    latestEditorHtmlRef.current = selectedNote
+  }, [selectedNote])
+
+  useEffect(() => {
+    return () => {
+      if (pendingSaveTimerRef.current) {
+        window.clearTimeout(pendingSaveTimerRef.current)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -116,7 +130,19 @@ export const Timeline: React.FC<TimelineProps> = ({ selectedId, selectedTitle, s
       const taskId = latestSelectedIdRef.current
       const handleNoteChange = latestOnNoteChangeRef.current
       if (!taskId || !handleNoteChange) return
-      void handleNoteChange(taskId, currentEditor.getHTML())
+      const nextHtml = currentEditor.getHTML()
+      latestEditorHtmlRef.current = nextHtml
+
+      if (pendingSaveTimerRef.current) {
+        window.clearTimeout(pendingSaveTimerRef.current)
+      }
+
+      pendingSaveTimerRef.current = window.setTimeout(() => {
+        const latestTaskId = latestSelectedIdRef.current
+        const latestHandler = latestOnNoteChangeRef.current
+        if (!latestTaskId || !latestHandler) return
+        void latestHandler(latestTaskId, latestEditorHtmlRef.current)
+      }, 360)
     },
   })
 
@@ -128,6 +154,16 @@ export const Timeline: React.FC<TimelineProps> = ({ selectedId, selectedTitle, s
     }
     editor.setEditable(!!selectedId)
   }, [editor, selectedId, selectedNote])
+
+  useEffect(() => {
+    if (!selectedId || !onNoteChange) return
+    return () => {
+      if (!pendingSaveTimerRef.current) return
+      window.clearTimeout(pendingSaveTimerRef.current)
+      pendingSaveTimerRef.current = null
+      void onNoteChange(selectedId, latestEditorHtmlRef.current)
+    }
+  }, [onNoteChange, selectedId])
 
   useEffect(() => {
     if (!selectedId || selectedNote) return

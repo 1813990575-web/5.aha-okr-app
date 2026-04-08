@@ -266,25 +266,43 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
           </button>
         </div>
 
-        {/* 时间统计进度条 - 深岩灰色质感 */}
+        {/* 时间统计进度条 - 借鉴玻璃珠滑轨的凹槽质感 */}
         <div className="flex items-center gap-2 px-4 py-1.5 pb-3">
           {/* 左侧：已度过百分比 - 灰色字 */}
           <span className="text-[14px] font-bold w-[44px] flex-shrink-0" style={{ color: '#94A3B8' }}>
             {dayProgress.progress}%
           </span>
 
-          {/* 中间：进度条 - 极简灰轨道 + 灰蓝渐变填充 + 呼吸动画 */}
+          {/* 中间：细长玻璃槽风格进度条 */}
           <div
-            className="flex-1 h-2 rounded-full overflow-hidden"
+            className="relative flex-1 overflow-hidden rounded-full"
             style={{
-              background: '#E2E8F0',
+              height: '10px',
+              background: '#EEF2F6',
+              boxShadow: `
+                inset 0 1px 2px rgba(0, 0, 0, 0.12),
+                inset 0 1px 1px rgba(0, 0, 0, 0.06),
+                0 0 0 1px rgba(255, 255, 255, 0.95),
+                0 1px 0 rgba(255, 255, 255, 0.92)
+              `,
             }}
           >
             <div
-              className="h-full rounded-full transition-all duration-300 progress-bar-pulse"
+              className="pointer-events-none absolute inset-0 rounded-full"
+              style={{
+                background: 'linear-gradient(to bottom, rgba(0,0,0,0.04) 0%, transparent 24%, transparent 78%, rgba(255,255,255,0.55) 100%)',
+              }}
+            />
+            <div
+              className="progress-bar-pulse absolute left-[2px] top-1/2 h-[6px] -translate-y-1/2 rounded-full transition-all duration-300"
               style={{
                 width: `${dayProgress.progress}%`,
-                background: 'linear-gradient(to right, #718096 0%, #2D3748 100%)',
+                maxWidth: 'calc(100% - 4px)',
+                background: 'linear-gradient(to bottom, #7e8ca0 0%, #6b798e 52%, #5b677c 100%)',
+                boxShadow: `
+                  inset 0 -1px 1px rgba(0,0,0,0.12),
+                  0 1px 1px rgba(67, 82, 103, 0.08)
+                `,
               }}
             />
           </div>
@@ -296,7 +314,6 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
         </div>
       </div>
 
-      {/* 进度条呼吸动画样式 */}
       <style>{`
         @keyframes progress-pulse {
           0%, 100% { opacity: 1; }

@@ -1,6 +1,6 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react'
+import React, { useState, useCallback, useRef, useEffect, useLayoutEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowRight, Check, Circle, Square, Triangle, Plus, Trash2, CalendarPlus } from 'lucide-react'
+import { Check, Circle, Square, Triangle, Plus, Trash2, CalendarPlus, ListTodo } from 'lucide-react'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useDndMonitor } from '@dnd-kit/core'
@@ -19,21 +19,35 @@ interface ObjectiveItemUI {
   dbId: string
   hasChildren?: boolean
   color?: string | null
+  objectiveIconMode?: 'folder' | 'emoji' | 'countdown' | null
+  objectiveIconEmoji?: string | null
+  objectiveDeadlineAt?: string | null
   status?: number
 }
 
-const ObjectiveContainerIcon: React.FC<{ color: string }> = ({ color }) => (
-  <svg viewBox="0 0 24 24" className="h-[13px] w-[13px]" aria-hidden="true">
-    <path
-      d="M3.8 7.8c0-1 .8-1.8 1.8-1.8h4.1c.5 0 1 .2 1.4.6l1.1 1.1c.2.2.4.3.7.3h5.6c1 0 1.8.8 1.8 1.8v6.6c0 1-.8 1.8-1.8 1.8H5.6c-1 0-1.8-.8-1.8-1.8V7.8Z"
-      fill={color}
-    />
-    <path
-      d="M4.6 9.8c0-.5.4-.9.9-.9h12.9c.5 0 .9.4.9.9v.8H4.6v-.8Zm0 1.9h14.7v4.4c0 .5-.4.9-.9.9H5.5c-.5 0-.9-.4-.9-.9v-4.4Z"
-      fill="rgba(255,255,255,0.94)"
-    />
-  </svg>
-)
+const OBJECTIVE_EMOJI_OPTIONS = ['🔴', '🟠', '🟡', '🟢', '🔵', '🟣', '🟤', '⚫️', '⚪️']
+const DEFAULT_OBJECTIVE_EMOJI = '⚪️'
+const MAX_COUNTDOWN_DAYS = 999
+
+function getCountdownDays(deadlineAt: string): number {
+  const target = new Date(deadlineAt)
+  const today = new Date()
+  const targetDay = new Date(target.getFullYear(), target.getMonth(), target.getDate()).getTime()
+  const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()
+  return Math.round((targetDay - todayDay) / (1000 * 60 * 60 * 24))
+}
+
+function formatCountdownLabel(deadlineAt?: string | null): string | null {
+  if (!deadlineAt) return null
+  const days = getCountdownDays(deadlineAt)
+  if (days > MAX_COUNTDOWN_DAYS) return String(MAX_COUNTDOWN_DAYS)
+  if (days < -MAX_COUNTDOWN_DAYS) return `-${MAX_COUNTDOWN_DAYS}`
+  return String(days)
+}
+
+function isCountdownDateTooFar(deadlineAt: string): boolean {
+  return getCountdownDays(deadlineAt) > MAX_COUNTDOWN_DAYS
+}
 
 const TreeToggleTriangle: React.FC<{ expanded: boolean }> = ({ expanded }) => (
   <svg
@@ -74,8 +88,8 @@ const SIDEBAR_ROW_LAYOUT = {
     3: '#5f6a78',
   },
   objectiveIcon: {
-    filledBackground: '#171c24',
-    emptyBackground: '#8f98a8',
+    filledBackground: '#8E8E93',
+    emptyBackground: '#8E8E93',
     iconColor: '#ffffff',
   },
   activeRowBackground: 'rgba(132, 141, 154, 0.14)',
@@ -120,27 +134,34 @@ const SIDEBAR_TREE_LAYOUT = {
 // 颜色配置 - 低饱和不透明底色 + 优雅阴影
 export const COLOR_OPTIONS = [
   { key: 'none', label: '默认', bgColor: 'transparent', textColor: '#364152', shadow: 'none' },
-  { key: 'graphite', label: '石墨黑', bgColor: '#171c24', textColor: '#171c24', shadow: 'none' },
-  { key: 'blue', label: '提醒蓝', bgColor: '#0A84FF', textColor: '#0A84FF', shadow: 'none' },
-  { key: 'red', label: '计划红', bgColor: '#FF453A', textColor: '#FF453A', shadow: 'none' },
-  { key: 'orange', label: '旗标橙', bgColor: '#FF9F0A', textColor: '#FF9F0A', shadow: 'none' },
-  { key: 'green', label: '分配绿', bgColor: '#30D158', textColor: '#30D158', shadow: 'none' },
-  { key: 'purple', label: '提醒紫', bgColor: '#BF5AF2', textColor: '#BF5AF2', shadow: 'none' },
-  { key: 'teal', label: '湖水青', bgColor: '#40C8E0', textColor: '#40C8E0', shadow: 'none' },
+  { key: 'red', label: '红', bgColor: '#FF453A', textColor: '#FF453A', shadow: 'none' },
+  { key: 'orange', label: '橙', bgColor: '#FF9F0A', textColor: '#FF9F0A', shadow: 'none' },
+  { key: 'yellow', label: '黄', bgColor: '#FFD60A', textColor: '#FFD60A', shadow: 'none' },
+  { key: 'green', label: '绿', bgColor: '#30D158', textColor: '#30D158', shadow: 'none' },
+  { key: 'sky', label: '浅蓝', bgColor: '#64D2FF', textColor: '#64D2FF', shadow: 'none' },
+  { key: 'blue', label: '蓝', bgColor: '#0A84FF', textColor: '#0A84FF', shadow: 'none' },
+  { key: 'indigo', label: '靛蓝', bgColor: '#5E5CE6', textColor: '#5E5CE6', shadow: 'none' },
+  { key: 'pink', label: '粉', bgColor: '#FF375F', textColor: '#FF375F', shadow: 'none' },
+  { key: 'purple', label: '紫', bgColor: '#BF5AF2', textColor: '#BF5AF2', shadow: 'none' },
+  { key: 'brown', label: '棕', bgColor: '#AC8E68', textColor: '#AC8E68', shadow: 'none' },
+  { key: 'graphite', label: '灰', bgColor: '#636E72', textColor: '#636E72', shadow: 'none' },
+  { key: 'beige', label: '米', bgColor: '#D8A39D', textColor: '#D8A39D', shadow: 'none' },
 ]
 
 interface SidebarProps {
   activeObjective?: string
   onSetActive?: (id: string) => void
   onAddToDailyTasks?: (item: { id: string; title: string; color?: string | null; type?: 'O' | 'KR' | 'TODO' }) => void
-  onOpenObjectiveBoard?: (item: { id: string; title: string; color?: string | null }) => void
+  onToggleObjectiveBoardMode?: (objective?: { id: string; title: string; color?: string | null }) => void
+  onOkrItemsChanged?: () => void | Promise<void>
+  okrViewMode?: 'daily' | 'objective-board'
   refreshTrigger?: number
   shouldScrollToActive?: boolean // 是否自动滚动到选中项（中间面板触发时为 true）
   sliderStyle?: 'bead' | 'pill'
   onOpenWorkspaceThemeMenu?: (position: { x: number; y: number }) => void
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ activeObjective: externalActiveObjective, onSetActive, onAddToDailyTasks, onOpenObjectiveBoard, refreshTrigger, shouldScrollToActive = false, sliderStyle = 'bead', onOpenWorkspaceThemeMenu }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ activeObjective: externalActiveObjective, onSetActive, onAddToDailyTasks, onToggleObjectiveBoardMode, onOkrItemsChanged, okrViewMode = 'daily', refreshTrigger, shouldScrollToActive = false, sliderStyle = 'bead', onOpenWorkspaceThemeMenu }) => {
   const [internalActiveObjective, setInternalActiveObjective] = useState<string>('obj-1')
   const [activeSortId, setActiveSortId] = useState<string | null>(null)
   const [overSortId, setOverSortId] = useState<string | null>(null)
@@ -273,6 +294,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeObjective: externalActiv
   // 更新目标文字
   const handleUpdateLabel = async (dbId: string, newLabel: string) => {
     await updateTitle(dbId, newLabel)
+    await onOkrItemsChanged?.()
   }
 
   // 切换展开/收起
@@ -286,10 +308,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeObjective: externalActiv
     return item?.hasChildren || false
   }
 
-  // 处理进度条切换
-  const [sliderPercentage, setSliderPercentage] = useState(0)
-
-  const handleViewModeChange = (mode: string, percentage: number) => {
+  const handleViewModeChange = (mode: string, _percentage: number) => {
     const modeMap: Record<string, ResetLevel> = {
       'objectives': 'objectives',
       'key-results': 'keyresults',
@@ -297,26 +316,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeObjective: externalActiv
     }
     const resetLevel = modeMap[mode] || 'objectives'
     resetExpandedState(resetLevel)
-    setSliderPercentage(percentage)
   }
-
-  // 根据百分比获取标题文案
-  const getBreadcrumbText = () => {
-    if (sliderPercentage <= 30) return { text: '目标', range: 'O' }
-    if (sliderPercentage <= 70) return { text: '目标 > 关键结果', range: 'O > KR' }
-    return { text: '目标 > 关键结果 > 待办', range: 'O > KR > DO' }
-  }
-
-  const breadcrumb = getBreadcrumbText()
 
   // 处理创建同级
   const handleCreateSibling = async (currentId: string) => {
     await createSibling(currentId)
+    await onOkrItemsChanged?.()
   }
 
   // 处理创建子级
   const handleCreateChild = async (parentId: string) => {
     await createChild(parentId)
+    await onOkrItemsChanged?.()
   }
 
   // 处理删除
@@ -331,6 +342,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeObjective: externalActiv
         setActiveObjective(prevItem.id)
       }
     }
+    await onOkrItemsChanged?.()
   }
 
   // 处理创建一级目标
@@ -350,6 +362,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeObjective: externalActiv
         })
         setNewObjectiveId(newId)
         await refresh()
+        await onOkrItemsChanged?.()
       }
     } catch (err) {
       console.error('[Sidebar] 创建一级目标失败:', err)
@@ -369,6 +382,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeObjective: externalActiv
         })
         console.log("[DIAG] Color updated in DB, refreshing...")
         await refresh()
+        await onOkrItemsChanged?.()
         console.log("[DIAG] Refresh completed")
       }
     } catch (err) {
@@ -376,10 +390,47 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeObjective: externalActiv
     }
   }
 
+  const handleUpdateObjectiveDecoration = async (
+    dbId: string,
+    updates: {
+      objective_icon_mode?: 'folder' | 'emoji' | 'countdown' | null
+      objective_icon_emoji?: string | null
+      objective_deadline_at?: string | null
+    }
+  ) => {
+    try {
+      if (typeof window !== 'undefined' && (window as any).electronAPI?.database) {
+        await (window as any).electronAPI.database.updateItem(dbId, updates)
+        await refresh()
+        await onOkrItemsChanged?.()
+      }
+    } catch (err) {
+      console.error('[Sidebar] 更新目标图标失败:', err)
+    }
+  }
+
   const handleSidebarContextMenu = (e: React.MouseEvent) => {
     if (!onOpenWorkspaceThemeMenu) return
     e.preventDefault()
     onOpenWorkspaceThemeMenu({ x: e.clientX, y: e.clientY })
+  }
+
+  const handleToggleBoardMode = () => {
+    if (okrViewMode === 'objective-board') {
+      onToggleObjectiveBoardMode?.()
+      return
+    }
+
+    const selectedObjective = items.find((item) => item.iconType === 'objective' && (item.dbId === activeObjective || item.id === activeObjective))
+    const firstObjective = items.find((item) => item.iconType === 'objective')
+    const target = selectedObjective || firstObjective
+
+    if (target) {
+      onToggleObjectiveBoardMode?.({ id: target.dbId, title: target.label, color: target.color ?? null })
+      return
+    }
+
+    onToggleObjectiveBoardMode?.()
   }
 
   return (
@@ -396,7 +447,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeObjective: externalActiv
     >
       {/* 可拖拽的上边栏区域 */}
       <div className="app-drag-region flex-shrink-0 px-3">
-        <div className="traffic-light-space" />
+        <div className="traffic-light-space flex items-center justify-end px-1">
+          <button
+            onClick={handleToggleBoardMode}
+            className="app-no-drag flex h-6 w-6 items-center justify-center rounded-md transition-colors hover:bg-gray-200/40 dark:hover:bg-gray-700/40"
+            title={okrViewMode === 'objective-board' ? '执行模式' : '梳理模式'}
+          >
+            <ListTodo className="h-4 w-4" style={{ color: themeConfig.isDark ? 'rgba(255,255,255,0.56)' : 'rgba(74, 78, 105, 0.56)' }} />
+          </button>
+        </div>
         <SegmentedControl
           defaultValue="objectives"
           onChange={handleViewModeChange}
@@ -406,25 +465,24 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeObjective: externalActiv
 
       <nav ref={navRef} className="flex-1 px-4 overflow-y-auto scrollbar-hide hover:scrollbar-show">
         <div className="mt-2">
-          <div className="flex items-center justify-between px-3 py-2">
-            <div className="flex items-center gap-2">
-              {/* 面包屑标题 - 无动画即时切换 */}
-              <div
-                className="text-[11px] font-semibold uppercase tracking-[0.18em]"
-                style={{ 
-                  color: themeConfig.isDark ? 'rgba(255,255,255,0.6)' : 'rgba(74, 78, 105, 0.62)',
-                }}
-              >
-                {breadcrumb.text}
-              </div>
-            </div>
-            <button
-              onClick={() => handleCreateObjective()}
-              className="p-1 rounded hover:bg-gray-200/50 dark:hover:bg-gray-700/50 transition-colors"
-              title="添加目标"
+          <div className="flex items-center justify-between pl-3 pr-0 py-2">
+            <div
+              className="text-[11px] font-semibold tracking-[0.16em]"
+              style={{
+                color: themeConfig.isDark ? 'rgba(255,255,255,0.5)' : 'rgba(74, 78, 105, 0.54)',
+              }}
             >
-              <Plus className="w-4 h-4" style={{ color: themeConfig.isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.4)' }} />
-            </button>
+              OKR
+            </div>
+            <div className="flex items-center">
+              <button
+                onClick={() => handleCreateObjective()}
+                className="app-no-drag flex h-6 w-6 items-center justify-center rounded-md transition-colors hover:bg-gray-200/40 dark:hover:bg-gray-700/40"
+                title="添加目标"
+              >
+                <Plus className="h-3.5 w-3.5" style={{ color: themeConfig.isDark ? 'rgba(255,255,255,0.5)' : 'rgba(74, 78, 105, 0.52)' }} />
+              </button>
+            </div>
           </div>
 
           {loading && (
@@ -439,15 +497,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeObjective: externalActiv
             <ObjectiveList
               items={items}
               activeObjective={activeObjective}
+              okrViewMode={okrViewMode}
               editingId={editingId}
               newObjectiveId={newObjectiveId}
               onSetActive={setActiveObjective}
+              onToggleObjectiveBoardMode={onToggleObjectiveBoardMode}
               onUpdateLabel={handleUpdateLabel}
               onToggleExpand={handleToggleExpand}
               onCreateSibling={handleCreateSibling}
               onCreateChild={handleCreateChild}
               onDelete={handleDelete}
               onUpdateColor={handleUpdateColor}
+              onUpdateObjectiveDecoration={handleUpdateObjectiveDecoration}
               onClearEditing={clearEditingId}
               onClearNewObjective={() => setNewObjectiveId(null)}
               hasChildren={hasChildren}
@@ -458,7 +519,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeObjective: externalActiv
               overSortId={overSortId}
               previewPosition={previewPosition}
               recentlyMovedId={recentlyMovedId}
-              onOpenObjectiveBoard={onOpenObjectiveBoard}
             />
           </div>
         </div>
@@ -510,6 +570,13 @@ interface ObjectiveItemProps {
   onCreateChild: () => void
   onDelete: () => void
   onUpdateColor: (colorKey: string) => void
+  onUpdateObjectiveDecoration: (
+    updates: {
+      objective_icon_mode?: 'folder' | 'emoji' | 'countdown' | null
+      objective_icon_emoji?: string | null
+      objective_deadline_at?: string | null
+    }
+  ) => void
   onClearEditing: () => void
   onClearNewObjective?: () => void
   hasChildren?: boolean
@@ -517,7 +584,6 @@ interface ObjectiveItemProps {
   parentObjectiveColor?: string | null
   onAddToDailyTasks?: (item: { id: string; title: string; color?: string | null; type?: 'O' | 'KR' | 'TODO' }) => void
   onToggleStatus?: (dbId: string, newStatus: number) => void
-  onOpenObjectiveBoard?: (item: { id: string; title: string; color?: string | null }) => void
   hideKrTriangle?: boolean
 }
 
@@ -607,6 +673,7 @@ const ObjectiveItem: React.FC<ObjectiveItemProps> = ({
   onCreateChild,
   onDelete,
   onUpdateColor,
+  onUpdateObjectiveDecoration,
   onClearEditing,
   onClearNewObjective,
   hasChildren,
@@ -614,7 +681,6 @@ const ObjectiveItem: React.FC<ObjectiveItemProps> = ({
   parentObjectiveColor,
   onAddToDailyTasks,
   onToggleStatus,
-  onOpenObjectiveBoard,
   hideKrTriangle = false,
 }) => {
   const { themeConfig } = useSidebarTheme()
@@ -622,7 +688,14 @@ const ObjectiveItem: React.FC<ObjectiveItemProps> = ({
   const [editValue, setEditValue] = useState(item.label)
   const [showContextMenu, setShowContextMenu] = useState(false)
   const [contextMenuPos, setContextMenuPos] = useState({ x: 0, y: 0 })
+  const [contextMenuAnchor, setContextMenuAnchor] = useState<{ x: number; y: number } | null>(null)
+  const [countdownDate, setCountdownDate] = useState(item.objectiveDeadlineAt ?? '')
+  const [countdownError, setCountdownError] = useState('')
+  const [selectedDecorationPanel, setSelectedDecorationPanel] = useState<'folder' | 'emoji' | 'countdown'>(
+    item.objectiveIconMode === 'countdown' ? 'countdown' : item.objectiveIconMode === 'emoji' ? 'emoji' : 'folder'
+  )
   const inputRef = React.useRef<HTMLInputElement>(null)
+  const contextMenuRef = React.useRef<HTMLDivElement>(null)
 
   // 统一处理进入编辑状态的逻辑
   React.useEffect(() => {
@@ -687,6 +760,12 @@ const ObjectiveItem: React.FC<ObjectiveItemProps> = ({
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
+    setCountdownDate(item.objectiveDeadlineAt ?? '')
+    setCountdownError('')
+    setSelectedDecorationPanel(
+      item.objectiveIconMode === 'countdown' ? 'countdown' : item.objectiveIconMode === 'emoji' ? 'emoji' : 'folder'
+    )
+    setContextMenuAnchor({ x: e.clientX, y: e.clientY })
     setContextMenuPos({ x: e.clientX, y: e.clientY })
     setShowContextMenu(true)
   }
@@ -702,6 +781,37 @@ const ObjectiveItem: React.FC<ObjectiveItemProps> = ({
       return () => document.removeEventListener('click', handleClick)
     }
   }, [showContextMenu, handleCloseContextMenu])
+
+  useLayoutEffect(() => {
+    if (!showContextMenu || !contextMenuAnchor || !contextMenuRef.current) return
+
+    const menuRect = contextMenuRef.current.getBoundingClientRect()
+    const viewportPadding = 16
+    const cursorGap = 10
+
+    let nextLeft = contextMenuAnchor.x + cursorGap
+    let nextTop = contextMenuAnchor.y - 12
+
+    if (nextLeft + menuRect.width > window.innerWidth - viewportPadding) {
+      nextLeft = contextMenuAnchor.x - menuRect.width - cursorGap
+    }
+
+    if (nextLeft < viewportPadding) {
+      nextLeft = viewportPadding
+    }
+
+    if (nextTop + menuRect.height > window.innerHeight - viewportPadding) {
+      nextTop = window.innerHeight - menuRect.height - viewportPadding
+    }
+
+    if (nextTop < viewportPadding) {
+      nextTop = viewportPadding
+    }
+
+    if (nextLeft !== contextMenuPos.x || nextTop !== contextMenuPos.y) {
+      setContextMenuPos({ x: nextLeft, y: nextTop })
+    }
+  }, [showContextMenu, contextMenuAnchor, contextMenuPos.x, contextMenuPos.y])
 
   const handleCreateChildClick = () => {
     onCreateChild()
@@ -733,6 +843,7 @@ const ObjectiveItem: React.FC<ObjectiveItemProps> = ({
   const isObjective = item.iconType === 'objective'
   const isKR = item.iconType === 'keyresult'
   const isTodo = item.iconType === 'todo'
+  const canCustomizeObjective = isObjective
 
   // 判断是否为末端 TODO（可拖拽）
   const isDraggableTodo = isTodo
@@ -757,6 +868,28 @@ const ObjectiveItem: React.FC<ObjectiveItemProps> = ({
         ? SIDEBAR_ROW_LAYOUT.objectiveIcon.filledBackground
         : SIDEBAR_ROW_LAYOUT.objectiveIcon.emptyBackground,
     iconColor: SIDEBAR_ROW_LAYOUT.objectiveIcon.iconColor,
+  }
+  const objectiveIconMode = item.objectiveIconMode ?? 'folder'
+  const countdownLabel = formatCountdownLabel(item.objectiveDeadlineAt)
+  const countdownLabelLength = countdownLabel?.length ?? 0
+  const countdownTextClassName = countdownLabelLength >= 4
+    ? 'text-[9px]'
+    : countdownLabelLength === 3
+      ? 'text-[10px]'
+      : 'text-[12px]'
+  const isCountdownSelectionInvalid = Boolean(countdownDate) && isCountdownDateTooFar(countdownDate)
+  const renderObjectiveIconContent = () => {
+    if (objectiveIconMode === 'emoji' && item.objectiveIconEmoji) {
+      return <span className="text-[13px] leading-none">{item.objectiveIconEmoji}</span>
+    }
+    if (objectiveIconMode === 'countdown' && countdownLabel) {
+      return (
+        <span className={`${countdownTextClassName} font-bold leading-none tracking-[-0.04em] text-white`}>
+          {countdownLabel}
+        </span>
+      )
+    }
+    return <span className="text-[12px] leading-none">{DEFAULT_OBJECTIVE_EMOJI}</span>
   }
   const rowBackgroundColor = isActive ? SIDEBAR_ROW_LAYOUT.activeRowBackground : undefined
   const hoverBackgroundColor = SIDEBAR_ROW_LAYOUT.hoverRowBackground
@@ -810,19 +943,19 @@ const ObjectiveItem: React.FC<ObjectiveItemProps> = ({
           )}
           {isObjective && hasChildren && (
             <div
-              className={`relative z-10 flex-shrink-0 flex h-6 w-6 items-center justify-center rounded-full transition-opacity ${isObjective ? 'opacity-75 hover:opacity-100' : 'opacity-60 hover:opacity-100'}` }
+              className="relative z-10 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full"
               style={{ backgroundColor: objectiveIconTone.backgroundColor }}
               onClick={handleExpandClick}
             >
-              <ObjectiveContainerIcon color={objectiveIconTone.iconColor} />
+              {renderObjectiveIconContent()}
             </div>
           )}
           {isObjective && !hasChildren && (
             <div
-              className="relative z-10 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full opacity-55"
+              className="relative z-10 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full"
               style={{ backgroundColor: objectiveIconTone.backgroundColor }}
             >
-              <ObjectiveContainerIcon color={objectiveIconTone.iconColor} />
+              {renderObjectiveIconContent()}
             </div>
           )}
 
@@ -950,19 +1083,6 @@ const ObjectiveItem: React.FC<ObjectiveItemProps> = ({
           </div>
           )}
 
-          {isObjective && item.level === 1 && onOpenObjectiveBoard && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                onOpenObjectiveBoard({ id: item.dbId, title: item.label, color: item.color ?? null })
-              }}
-              className="ml-auto flex h-7 w-7 items-center justify-center rounded-full text-[#98a0ad] opacity-0 transition-all duration-200 hover:bg-white/60 hover:text-[#5f6880] group-hover:opacity-100"
-              title="打开目标面板"
-            >
-              <ArrowRight className="h-4 w-4" strokeWidth={2.2} />
-            </button>
-          )}
         </div>
       )
 
@@ -986,10 +1106,38 @@ const ObjectiveItem: React.FC<ObjectiveItemProps> = ({
 
           {showContextMenu && (
             <div
-              className="fixed z-50 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 min-w-[160px]"
+              ref={contextMenuRef}
+              className="fixed z-50 max-h-[min(520px,calc(100vh-32px))] overflow-y-auto bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 min-w-[160px]"
               style={{ left: contextMenuPos.x, top: contextMenuPos.y }}
+              onClick={(e) => e.stopPropagation()}
+              onContextMenu={(e) => e.stopPropagation()}
             >
-              {isObjective && (
+              {item.iconType !== 'todo' && (
+                <button
+                  onClick={handleCreateChildClick}
+                  className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>新建子级</span>
+                </button>
+              )}
+              {item.iconType === 'todo' && onAddToDailyTasks && (
+                <button
+                  onClick={handleAddToDailyTasksClick}
+                  className="w-full px-4 py-2 text-left text-sm hover:bg-blue-50 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center gap-2"
+                >
+                  <CalendarPlus className="w-4 h-4" />
+                  <span>加入今日待办</span>
+                </button>
+              )}
+              <button
+                onClick={handleDeleteClick}
+                className="w-full px-4 py-2 text-left text-sm hover:bg-red-50 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 flex items-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>{isObjective ? '删除目标' : '删除'}</span>
+              </button>
+              {canCustomizeObjective && (
                 <div className="px-2 py-2 border-b border-gray-100 dark:border-gray-700">
                   <div className="text-xs text-gray-500 dark:text-gray-400 mb-2 px-2">标记颜色</div>
                   <div className="flex flex-wrap gap-1 px-2">
@@ -1014,31 +1162,144 @@ const ObjectiveItem: React.FC<ObjectiveItemProps> = ({
                   </div>
                 </div>
               )}
-              {item.iconType !== 'todo' && (
-                <button
-                  onClick={handleCreateChildClick}
-                  className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>新建子级</span>
-                </button>
+              {canCustomizeObjective && (
+                <div className="px-2 py-2 border-b border-gray-100 dark:border-gray-700">
+                  <div className="mb-2 px-2 text-xs text-gray-500 dark:text-gray-400">图标内容</div>
+                  <div className="flex flex-wrap gap-1 px-2">
+                    <button
+                      onClick={() => {
+                        setCountdownError('')
+                        setSelectedDecorationPanel('folder')
+                        onUpdateObjectiveDecoration({
+                          objective_icon_mode: 'folder',
+                          objective_icon_emoji: null,
+                          objective_deadline_at: null,
+                        })
+                        handleCloseContextMenu()
+                      }}
+                      className={`rounded-md border px-2 py-1 text-xs transition-colors ${
+                        selectedDecorationPanel === 'folder' ? 'border-gray-400 bg-gray-100' : 'border-gray-200 hover:bg-gray-50'
+                      }`}
+                    >
+                      默认
+                    </button>
+                    <button
+                      onClick={() => {
+                        setCountdownError(countdownDate && isCountdownDateTooFar(countdownDate) ? `倒计时最长只能设置到 ${MAX_COUNTDOWN_DAYS} 天内` : '')
+                        setSelectedDecorationPanel('countdown')
+                      }}
+                      className={`rounded-md border px-2 py-1 text-xs transition-colors ${
+                        selectedDecorationPanel === 'countdown' ? 'border-gray-400 bg-gray-100' : 'border-gray-200 hover:bg-gray-50'
+                      }`}
+                    >
+                      倒计时
+                    </button>
+                    <button
+                      onClick={() => {
+                        setCountdownError('')
+                        setSelectedDecorationPanel('emoji')
+                      }}
+                      className={`rounded-md border px-2 py-1 text-xs transition-colors ${
+                        selectedDecorationPanel === 'emoji' ? 'border-gray-400 bg-gray-100' : 'border-gray-200 hover:bg-gray-50'
+                      }`}
+                    >
+                      Emoji
+                    </button>
+                  </div>
+                  {selectedDecorationPanel === 'emoji' && (
+                    <div className="mt-3 px-2">
+                      <div className="mb-1 text-xs text-gray-500 dark:text-gray-400">选择 Emoji</div>
+                      <div className="flex flex-wrap gap-1">
+                        {OBJECTIVE_EMOJI_OPTIONS.map((emoji) => (
+                          <button
+                            key={emoji}
+                            onClick={() => {
+                              onUpdateObjectiveDecoration({
+                                objective_icon_mode: 'emoji',
+                                objective_icon_emoji: emoji,
+                                objective_deadline_at: null,
+                              })
+                              handleCloseContextMenu()
+                            }}
+                            className={`flex h-8 w-8 items-center justify-center rounded-md border text-sm transition-colors ${
+                              objectiveIconMode === 'emoji' && item.objectiveIconEmoji === emoji
+                                ? 'border-gray-400 bg-gray-100'
+                                : 'border-gray-200 hover:bg-gray-50'
+                            }`}
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {selectedDecorationPanel === 'countdown' && (
+                    <div className="mt-3 px-2">
+                      <div className="mb-1 text-xs text-gray-500 dark:text-gray-400">结束日期</div>
+                      <input
+                        type="date"
+                        value={countdownDate}
+                        onChange={(e) => {
+                          const nextValue = e.target.value
+                          setCountdownDate(nextValue)
+                          if (!nextValue) {
+                            setCountdownError('')
+                            return
+                          }
+                          if (isCountdownDateTooFar(nextValue)) {
+                            setCountdownError(`倒计时最长只能设置到 ${MAX_COUNTDOWN_DAYS} 天内`)
+                            return
+                          }
+                          setCountdownError('')
+                        }}
+                        className={`w-full rounded-md border px-2 py-1 text-xs outline-none focus:border-gray-400 ${
+                          countdownError ? 'border-red-300 text-red-600' : 'border-gray-200'
+                        }`}
+                      />
+                      <div className={`mt-1 text-[11px] ${countdownError ? 'text-red-500' : 'text-gray-400'}`}>
+                        {countdownError || `最多支持 ${MAX_COUNTDOWN_DAYS} 天，超过后无法保存`}
+                      </div>
+                      <div className="mt-2 flex gap-2">
+                        <button
+                          onClick={() => {
+                            if (!countdownDate) return
+                            if (isCountdownDateTooFar(countdownDate)) {
+                              setCountdownError(`倒计时最长只能设置到 ${MAX_COUNTDOWN_DAYS} 天内`)
+                              return
+                            }
+                            onUpdateObjectiveDecoration({
+                              objective_icon_mode: 'countdown',
+                              objective_icon_emoji: null,
+                              objective_deadline_at: countdownDate,
+                            })
+                            handleCloseContextMenu()
+                          }}
+                          className="rounded-md border border-gray-200 px-2 py-1 text-xs transition-colors hover:bg-gray-50 disabled:opacity-40"
+                          disabled={!countdownDate || isCountdownSelectionInvalid}
+                        >
+                          保存
+                        </button>
+                        <button
+                          onClick={() => {
+                            setCountdownDate('')
+                            setCountdownError('')
+                            setSelectedDecorationPanel('folder')
+                            onUpdateObjectiveDecoration({
+                              objective_icon_mode: 'folder',
+                              objective_icon_emoji: null,
+                              objective_deadline_at: null,
+                            })
+                            handleCloseContextMenu()
+                          }}
+                          className="rounded-md border border-gray-200 px-2 py-1 text-xs transition-colors hover:bg-gray-50"
+                        >
+                          清除
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
-              {item.iconType === 'todo' && onAddToDailyTasks && (
-                <button
-                  onClick={handleAddToDailyTasksClick}
-                  className="w-full px-4 py-2 text-left text-sm hover:bg-blue-50 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center gap-2"
-                >
-                  <CalendarPlus className="w-4 h-4" />
-                  <span>加入今日待办</span>
-                </button>
-              )}
-              <button
-                onClick={handleDeleteClick}
-                className="w-full px-4 py-2 text-left text-sm hover:bg-red-50 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 flex items-center gap-2"
-              >
-                <Trash2 className="w-4 h-4" />
-                <span>删除</span>
-              </button>
             </div>
           )}
         </>
@@ -1049,15 +1310,25 @@ const ObjectiveItem: React.FC<ObjectiveItemProps> = ({
 interface ObjectiveListProps {
   items: ObjectiveItemUI[]
   activeObjective: string
+  okrViewMode?: 'daily' | 'objective-board'
   editingId: string | null
   newObjectiveId: string | null
   onSetActive: (id: string) => void
+  onToggleObjectiveBoardMode?: (objective?: { id: string; title: string; color?: string | null }) => void
   onUpdateLabel: (dbId: string, newLabel: string) => Promise<void>
   onToggleExpand: (id: string) => void
   onCreateSibling: (id: string) => Promise<void>
   onCreateChild: (id: string) => Promise<void>
   onDelete: (id: string, index: number) => Promise<void>
   onUpdateColor: (dbId: string, colorKey: string) => Promise<void>
+  onUpdateObjectiveDecoration: (
+    dbId: string,
+    updates: {
+      objective_icon_mode?: 'folder' | 'emoji' | 'countdown' | null
+      objective_icon_emoji?: string | null
+      objective_deadline_at?: string | null
+    }
+  ) => Promise<void>
   onClearEditing: () => void
   onClearNewObjective: () => void
   hasChildren: (itemId: string) => boolean
@@ -1068,21 +1339,23 @@ interface ObjectiveListProps {
   overSortId?: string | null
   previewPosition?: ReorderPreviewPosition
   recentlyMovedId?: string | null
-  onOpenObjectiveBoard?: (item: { id: string; title: string; color?: string | null }) => void
 }
 
 const ObjectiveList: React.FC<ObjectiveListProps> = ({
   items,
   activeObjective,
+  okrViewMode = 'daily',
   editingId,
   newObjectiveId,
   onSetActive,
+  onToggleObjectiveBoardMode,
   onUpdateLabel,
   onToggleExpand,
   onCreateSibling,
   onCreateChild,
   onDelete,
   onUpdateColor,
+  onUpdateObjectiveDecoration,
   onClearEditing,
   onClearNewObjective,
   hasChildren,
@@ -1093,7 +1366,6 @@ const ObjectiveList: React.FC<ObjectiveListProps> = ({
   overSortId,
   previewPosition,
   recentlyMovedId,
-  onOpenObjectiveBoard,
 }) => {
   const { themeConfig } = useSidebarTheme()
   const buildObjectiveGroups = (sourceItems: ObjectiveItemUI[]) => {
@@ -1126,6 +1398,17 @@ const ObjectiveList: React.FC<ObjectiveListProps> = ({
     }
 
     return groups
+  }
+
+  const handleObjectiveClick = (objective: ObjectiveItemUI) => {
+    onSetActive(objective.id)
+    if (okrViewMode === 'objective-board') {
+      onToggleObjectiveBoardMode?.({
+        id: objective.dbId,
+        title: objective.label,
+        color: objective.color ?? null,
+      })
+    }
   }
 
   const objectiveGroups = buildObjectiveGroups(items)
@@ -1166,6 +1449,7 @@ const ObjectiveList: React.FC<ObjectiveListProps> = ({
                 onCreateChild={() => onCreateChild(todo.id)}
                 onDelete={() => onDelete(todo.id, index)}
                 onUpdateColor={(colorKey) => onUpdateColor(todo.dbId, colorKey)}
+                onUpdateObjectiveDecoration={(updates) => onUpdateObjectiveDecoration(todo.dbId, updates)}
                 onClearEditing={onClearEditing}
                 hasChildren={hasChildren(todo.id)}
                 itemRef={(el) => {
@@ -1174,7 +1458,6 @@ const ObjectiveList: React.FC<ObjectiveListProps> = ({
                 parentObjectiveColor={parentColor}
                 onAddToDailyTasks={onAddToDailyTasks}
                 onToggleStatus={onToggleStatus}
-                onOpenObjectiveBoard={onOpenObjectiveBoard}
               />
             </SortableSidebarItemWrapper>
           ))}
@@ -1249,6 +1532,7 @@ const ObjectiveList: React.FC<ObjectiveListProps> = ({
               onCreateChild={() => onCreateChild(kr.id)}
               onDelete={() => onDelete(kr.id, index)}
               onUpdateColor={(colorKey) => onUpdateColor(kr.dbId, colorKey)}
+              onUpdateObjectiveDecoration={(updates) => onUpdateObjectiveDecoration(kr.dbId, updates)}
               onClearEditing={onClearEditing}
               hasChildren={krHasChildren}
               itemRef={(el) => {
@@ -1257,7 +1541,6 @@ const ObjectiveList: React.FC<ObjectiveListProps> = ({
               parentObjectiveColor={parentColor}
               onAddToDailyTasks={onAddToDailyTasks}
               onToggleStatus={onToggleStatus}
-              onOpenObjectiveBoard={onOpenObjectiveBoard}
               hideKrTriangle={krHasChildren}
             />
           </SortableSidebarItemWrapper>
@@ -1312,13 +1595,14 @@ const ObjectiveList: React.FC<ObjectiveListProps> = ({
                     isEditing={editingId === group.objective.id}
                     isNewObjective={newObjectiveId === group.objective.id}
                     isRecentlyMoved={recentlyMovedId === group.objective.dbId}
-                    onClick={() => onSetActive(group.objective.id)}
+                    onClick={() => handleObjectiveClick(group.objective)}
                     onUpdateLabel={(newLabel) => onUpdateLabel(group.objective.dbId, newLabel)}
                     onToggleExpand={(id) => onToggleExpand(id || group.objective.id)}
                     onCreateSibling={() => onCreateSibling(group.objective.id)}
                     onCreateChild={() => onCreateChild(group.objective.id)}
                     onDelete={() => onDelete(group.objective.id, index)}
                     onUpdateColor={(colorKey) => onUpdateColor(group.objective.dbId, colorKey)}
+                    onUpdateObjectiveDecoration={(updates) => onUpdateObjectiveDecoration(group.objective.dbId, updates)}
                     onClearEditing={onClearEditing}
                     onClearNewObjective={onClearNewObjective}
                     hasChildren={hasChildren(group.objective.id)}
@@ -1327,7 +1611,6 @@ const ObjectiveList: React.FC<ObjectiveListProps> = ({
                     }}
                     onAddToDailyTasks={onAddToDailyTasks}
                     onToggleStatus={onToggleStatus}
-                    onOpenObjectiveBoard={onOpenObjectiveBoard}
                   />
 
                   <div className={`relative z-[1] ${SIDEBAR_TREE_LAYOUT.childrenStackGapClass}`}>
