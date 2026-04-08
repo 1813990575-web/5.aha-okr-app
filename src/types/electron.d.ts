@@ -27,6 +27,14 @@ export interface DailyTasksAPI {
   getTodayString: () => Promise<string>
 }
 
+export interface JournalAPI {
+  getAllRecords: () => Promise<any[]>
+  getRecordsByDate: (dateKey: string) => Promise<any[]>
+  getRecordById: (id: string) => Promise<any | null>
+  createRecord: (data: any) => Promise<any>
+  updateRecord: (id: string, updates: any) => Promise<any | null>
+}
+
 export interface AppAPI {
   getVersion: () => Promise<string>
 }
@@ -34,6 +42,7 @@ export interface AppAPI {
 export interface ElectronAPI {
   database: DatabaseAPI
   dailyTasks: DailyTasksAPI
+  journal: JournalAPI
   app: AppAPI
 }
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useDndMonitor } from '@dnd-kit/core'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -26,6 +26,7 @@ interface MainBoardProps {
   isPastDate?: boolean
   onReorderTasks?: (orderedTaskIds: string[]) => void | Promise<void>
   onExecutionItemsChanged?: () => void | Promise<void>
+  onSelectionTitleChange?: (selection: { id: string; title: string } | null) => void
 }
 
 export const MainBoard: React.FC<MainBoardProps> = ({
@@ -43,6 +44,7 @@ export const MainBoard: React.FC<MainBoardProps> = ({
   isPastDate,
   onReorderTasks,
   onExecutionItemsChanged,
+  onSelectionTitleChange,
 }) => {
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false)
   const [items, setItems] = useState<Item[]>([])
@@ -55,6 +57,8 @@ export const MainBoard: React.FC<MainBoardProps> = ({
   const [activeChildSortId, setActiveChildSortId] = useState<string | null>(null)
   const [editingSourceItemId, setEditingSourceItemId] = useState<string | null>(null)
   const [collapsedExecutionKrIds, setCollapsedExecutionKrIds] = useState<Set<string>>(new Set())
+  const [isScrolling, setIsScrolling] = useState(false)
+  const scrollTimerRef = useRef<number | null>(null)
 
   // 加载 OKR 数据（用于显示关联项标题）
   const loadItems = useCallback(async () => {
@@ -273,10 +277,21 @@ export const MainBoard: React.FC<MainBoardProps> = ({
   // 处理点击任务项 - 联动左侧选中态（需要滚动）
   const handleTaskClick = (task: DailyTask) => {
     setSelectedTaskId(task.id)
+    onSelectionTitleChange?.({ id: task.id, title: task.content })
     if ((task.sourceItemId ?? task.linkedGoalId) && onSetActiveObjective) {
       onSetActiveObjective(task.sourceItemId ?? task.linkedGoalId!, true) // true 表示需要滚动
     }
   }
+
+  useEffect(() => {
+    if (!selectedTaskId) {
+      onSelectionTitleChange?.(null)
+      return
+    }
+
+    const selectedTask = tasks.find((task) => task.id === selectedTaskId)
+    onSelectionTitleChange?.(selectedTask ? { id: selectedTask.id, title: selectedTask.content } : null)
+  }, [onSelectionTitleChange, selectedTaskId, tasks])
 
   useDndMonitor({
     onDragStart: (event) => {
@@ -368,7 +383,18 @@ export const MainBoard: React.FC<MainBoardProps> = ({
       )}
 
       {/* 待办列表 */}
-      <div className="flex-1 overflow-y-auto">
+      <div
+        className={`flex-1 overflow-y-auto ${isScrolling ? 'scrollbar-active' : 'scrollbar-idle'}`}
+        onScroll={() => {
+          setIsScrolling(true)
+          if (scrollTimerRef.current) {
+            window.clearTimeout(scrollTimerRef.current)
+          }
+          scrollTimerRef.current = window.setTimeout(() => {
+            setIsScrolling(false)
+          }, 700)
+        }}
+      >
         {isLoading ? (
           <div className="flex items-center justify-center h-32 text-gray-400 text-[14px]">
             加载中...
@@ -427,6 +453,9 @@ export const MainBoard: React.FC<MainBoardProps> = ({
               return (
                 <>
                   <div>
+                    <div className="pb-2 pt-1">
+                      <TaskInput onSubmit={handleCreateTask} disabled={isLoading} />
+                    </div>
                     <SortableContext items={tasks.map((task) => task.id)} strategy={verticalListSortingStrategy}>
                       <div className="space-y-1">
                         {tasks.map((task) => (
@@ -436,7 +465,6 @@ export const MainBoard: React.FC<MainBoardProps> = ({
                       ))}
                       </div>
                     </SortableContext>
-                    <TaskInput onSubmit={handleCreateTask} disabled={isLoading} />
                   </div>
                 </>
               )

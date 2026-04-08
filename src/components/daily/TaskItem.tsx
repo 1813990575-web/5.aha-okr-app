@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { Check, Trash2, CalendarArrowDown } from 'lucide-react'
 import type { DailyTask } from '../../store/index'
+import { DAILY_TASK_ROW_BASE_CLASS } from './taskRowStyles'
 
 interface TaskItemProps {
   task: DailyTask & { origin?: string | null; color?: string | null }
@@ -62,14 +63,12 @@ export const TaskItem: React.FC<TaskItemProps> = ({
 
   // 处理删除
   const handleDelete = () => {
-    console.log("[DIAG] Delete Triggered for task:", task.id)
     onDelete(task.id)
     handleCloseContextMenu()
   }
 
   // 处理移至今日
   const handleMoveToToday = () => {
-    console.log("[DIAG] Move to Today Triggered for task:", task.id)
     onMoveToToday?.(task.id)
     handleCloseContextMenu()
   }
@@ -137,8 +136,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
         onDoubleClick={handleDoubleClick}
         data-mainboard-task-id={task.id}
         className={`
-          group relative mx-6 mb-1.5 flex items-center gap-3 rounded-2xl border border-transparent px-6 py-3.5
-          transition-all duration-300 cursor-pointer
+          ${DAILY_TASK_ROW_BASE_CLASS} cursor-pointer
           ${task.isDone ? 'opacity-50' : ''}
           ${isHighlighted ? 'bg-blue-50/80 animate-pulse-highlight border-blue-100' : ''}
           ${isSelected ? 'bg-[#f3f5f7] border-[#e4e7eb]' : 'hover:bg-[#f7f8fa]'}

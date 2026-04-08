@@ -1,5 +1,5 @@
 {
-  "version": "1.0.4",
+  "version": "1.0.5",
   "downloadUrl": "https://github.com/1813990575-web/5.aha-okr-app/releases/latest",
-  "releaseNotes": "v1.0.4 更新内容：\n- 优化侧边栏二级项目的行间距\n- 修复版本检查地址，改为当前 GitHub 仓库\n- 版本号改为从应用自身读取，减少后续发布出错概率"
+  "releaseNotes": "v1.0.5 更新内容：\n- 新增工作区结构与 Journal 能力\n- 优化 OKR 工作区与任务交互体验\n- 修复正式安装包可能误连开发环境的问题"
 }

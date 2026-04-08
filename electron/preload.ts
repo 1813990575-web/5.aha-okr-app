@@ -41,6 +41,14 @@ export interface DailyTasksAPI {
   getTodayString: () => Promise<string>
 }
 
+export interface JournalAPI {
+  getAllRecords: () => Promise<any[]>
+  getRecordsByDate: (dateKey: string) => Promise<any[]>
+  getRecordById: (id: string) => Promise<any | null>
+  createRecord: (data: any) => Promise<any>
+  updateRecord: (id: string, updates: any) => Promise<any | null>
+}
+
 const databaseAPI: DatabaseAPI = {
   init: () => ipcRenderer.invoke('store:init'),
   getAllItems: () => ipcRenderer.invoke('db:getAllItems'),
@@ -69,6 +77,14 @@ const dailyTasksAPI: DailyTasksAPI = {
   getTodayString: () => ipcRenderer.invoke('daily:getTodayString'),
 }
 
+const journalAPI: JournalAPI = {
+  getAllRecords: () => ipcRenderer.invoke('journal:getAllRecords'),
+  getRecordsByDate: (dateKey: string) => ipcRenderer.invoke('journal:getRecordsByDate', dateKey),
+  getRecordById: (id: string) => ipcRenderer.invoke('journal:getRecordById', id),
+  createRecord: (data: any) => ipcRenderer.invoke('journal:createRecord', data),
+  updateRecord: (id: string, updates: any) => ipcRenderer.invoke('journal:updateRecord', id, updates),
+}
+
 // App 信息接口
 export interface AppAPI {
   getVersion: () => Promise<string>
@@ -82,6 +98,7 @@ const appAPI: AppAPI = {
 contextBridge.exposeInMainWorld('electronAPI', {
   database: databaseAPI,
   dailyTasks: dailyTasksAPI,
+  journal: journalAPI,
   app: appAPI,
 })
 
@@ -91,6 +108,7 @@ declare global {
     electronAPI: {
       database: DatabaseAPI
       dailyTasks: DailyTasksAPI
+      journal: JournalAPI
       app: AppAPI
     }
   }

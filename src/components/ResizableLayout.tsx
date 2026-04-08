@@ -19,16 +19,16 @@ interface ResizableLayoutProps {
 
 const DEFAULT_LEFT_CONFIG: PanelConfig = {
   id: 'left',
-  minWidth: 200,
-  defaultWidth: 380,
-  maxWidth: 500,
+  minWidth: 180,
+  defaultWidth: 240,
+  maxWidth: 360,
 }
 
 const DEFAULT_RIGHT_CONFIG: PanelConfig = {
   id: 'right',
-  minWidth: 250,
-  defaultWidth: 300,
-  maxWidth: 500,
+  minWidth: 280,
+  defaultWidth: 412,
+  maxWidth: 520,
 }
 
 // 拖拽把手组件
@@ -180,7 +180,7 @@ export const ResizableLayout: React.FC<ResizableLayoutProps> = ({
               </div>
 
               <div
-                className="relative flex-shrink-0 overflow-hidden border-l border-[#ebe5dc]"
+                className="relative flex-shrink-0 overflow-hidden"
                 style={{ width: rightWidth }}
               >
                 {rightPanel}

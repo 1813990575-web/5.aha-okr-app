@@ -154,6 +154,38 @@
   background: rgba(0, 0, 0, 0.24);
 }
 
+.scrollbar-idle {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scrollbar-idle::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.scrollbar-active {
+  scrollbar-width: thin;
+}
+
+.scrollbar-active::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.scrollbar-active::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-active::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.16);
+  border-radius: 999px;
+}
+
+.scrollbar-active::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.24);
+}
+
 /* 版本号显示样式 */
 .version-display {
   display: inline-block;
@@ -164,6 +196,70 @@
   color: rgba(0, 0, 0, 0.35);
   font-weight: 500;
   letter-spacing: 0.3px;
+}
+
+.timeline-note-editor {
+  min-height: 0;
+}
+
+.timeline-note-editor .ProseMirror {
+  height: 100%;
+  min-height: 160px;
+  outline: none;
+  font-size: 15px;
+  line-height: 1.75;
+  color: #202631;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.timeline-note-editor .ProseMirror[contenteditable='false'] {
+  cursor: default;
+}
+
+.timeline-note-editor .ProseMirror > *:first-child {
+  margin-top: 0;
+}
+
+.timeline-note-editor .ProseMirror > *:last-child {
+  margin-bottom: 0;
+}
+
+.timeline-note-editor .ProseMirror p {
+  margin: 0;
+}
+
+.timeline-note-editor .ProseMirror p + p {
+  margin-top: 0.2rem;
+}
+
+.timeline-note-editor .ProseMirror ul,
+.timeline-note-editor .ProseMirror ol {
+  margin: 0.2rem 0;
+  padding-left: 1.15rem;
+}
+
+.timeline-note-editor .ProseMirror li {
+  margin: 0;
+}
+
+.timeline-note-editor .ProseMirror li p {
+  margin: 0;
+}
+
+.timeline-note-editor .ProseMirror a,
+.timeline-note-link {
+  color: #2563eb;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.timeline-note-editor .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: rgba(0, 0, 0, 0.24);
+  pointer-events: none;
+  height: 0;
 }
 
 /* 暗色模式适配 */

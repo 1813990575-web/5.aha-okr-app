@@ -1,15 +1,13 @@
 import { useState, useCallback, useEffect } from 'react'
-import { Sidebar } from './components/Sidebar'
-import { MainBoard } from './components/MainBoard'
-import { Timeline } from './components/Timeline'
-import { ResizableLayout } from './components/ResizableLayout'
 import { SidebarThemeProvider } from './contexts/SidebarThemeContext'
 import { DragProvider, type DragItem } from './components/dnd/DragProvider'
-import { AppSidebarRail, type AppSection } from './components/AppSidebarRail'
+import { AppSidebarRail } from './components/AppSidebarRail'
 import { PlaceholderWorkspace } from './components/PlaceholderWorkspace'
 import { SettingsWorkspace } from './components/SettingsWorkspace'
-import { JournalWorkspace } from './components/journal/JournalWorkspace'
 import type { DailyTask } from './store/index'
+import type { WorkspaceId } from './workspaces/types'
+import { JournalWorkspace } from './workspaces/journal/JournalWorkspace'
+import { OkrWorkspace } from './workspaces/okr/OkrWorkspace'
 
 const WORKSPACE_THEME_PRESETS = [
   { id: 'milk-white', label: '奶白灰', background: 'linear-gradient(180deg,#fbfbfa,#f5f5f3)' },
@@ -31,11 +29,11 @@ const WORKSPACE_THEME_PRESETS = [
 ] as const
 
 function App() {
-  const [activeSection, setActiveSection] = useState<AppSection>('today')
+  const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceId>('okr')
   const [sliderStyle, setSliderStyle] = useState<'bead' | 'pill'>('bead')
   const [workspaceThemeId, setWorkspaceThemeId] = useState<(typeof WORKSPACE_THEME_PRESETS)[number]['id']>('milk-white')
   const [workspaceThemeMenu, setWorkspaceThemeMenu] = useState<{ x: number; y: number } | null>(null)
-  const [todayViewMode, setTodayViewMode] = useState<'daily' | 'objective-board'>('daily')
+  const [okrViewMode, setOkrViewMode] = useState<'daily' | 'objective-board'>('daily')
   const [focusedObjectiveBoard, setFocusedObjectiveBoard] = useState<{ id: string; title: string; color?: string | null } | null>(null)
 
   // 左侧选中状态 - 用于中间面板点击后联动左侧选中
@@ -52,18 +50,26 @@ function App() {
   const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null)
   const [highlightedSourceItemIds, setHighlightedSourceItemIds] = useState<string[]>([])
   const [dragNotice, setDragNotice] = useState<string | null>(null)
-
+  const [apiUnavailableMessage, setApiUnavailableMessage] = useState<string | null>(null)
   // Sidebar 刷新触发器 - 用于中间面板勾选后刷新左侧状态
   const [sidebarRefreshTrigger, setSidebarRefreshTrigger] = useState<number>(0)
 
   // 加载今日待办数据
   const loadTasks = useCallback(async () => {
+    if (!window.electronAPI?.dailyTasks?.getTasksByDate) {
+      setApiUnavailableMessage('数据库 API 不可用，请关闭开发版后重新打开正式安装包。')
+      setTasks([])
+      return
+    }
+
     try {
       const dateKey = formatDateKey(selectedDate)
       const dailyTasks = await window.electronAPI.dailyTasks.getTasksByDate(dateKey)
       setTasks(dailyTasks)
+      setApiUnavailableMessage(null)
     } catch (error) {
       console.error('[App] 加载待办失败:', error)
+      setApiUnavailableMessage('加载失败: 数据库 API 不可用')
     }
   }, [selectedDate])
 
@@ -88,7 +94,7 @@ function App() {
     setShouldScrollToActive(false)
     setFocusedObjectiveBoard((current) => {
       const isSame = current?.id === objective.id
-      setTodayViewMode(isSame ? 'daily' : 'objective-board')
+      setOkrViewMode(isSame ? 'daily' : 'objective-board')
       return isSame ? null : objective
     })
   }, [])
@@ -123,7 +129,7 @@ function App() {
     item: { id: string; title: string; color?: string | null; type?: DragItem['type'] },
     source: 'menu' | 'drag'
   ) => {
-    if (todayViewMode === 'daily' && item.type === 'O') {
+    if (okrViewMode === 'daily' && item.type === 'O') {
       setDragNotice('当前执行区最高只接受关键结果，请改为拖入关键结果')
       window.setTimeout(() => setDragNotice(null), 2200)
       return
@@ -195,6 +201,7 @@ function App() {
 
     const newTask = await window.electronAPI.dailyTasks.createTask({
       content: item.title,
+      note: '',
       isDone: false,
       date: dateKey,
       sort_order: topSortOrder,
@@ -223,7 +230,7 @@ function App() {
         ? descendantTasks.map((task) => task.sourceItemId ?? task.linkedGoalId)
         : []
     )
-  }, [selectedDate, showTaskFeedback, tasks, todayViewMode])
+  }, [okrViewMode, selectedDate, showTaskFeedback, tasks])
 
   // 处理加入今日待办 - 从左侧右键菜单添加
   const handleAddToDailyTasks = useCallback(async (item: { id: string; title: string; color?: string | null; type?: DragItem['type'] }) => {
@@ -252,25 +259,26 @@ function App() {
     console.log("[DIAG] App handleCreateTask called with:", content)
     try {
       const dateKey = formatDateKey(selectedDate)
-      const bottomSortOrder =
+      const topSortOrder =
         tasks.length > 0
-          ? Math.max(...tasks.map((task) => task.sort_order ?? 0)) + 1
+          ? Math.min(...tasks.map((task) => task.sort_order ?? 0)) - 1
           : 0
       const newTask = await window.electronAPI.dailyTasks.createTask({
         content,
+        note: '',
         isDone: false,
         date: dateKey,
-        sort_order: bottomSortOrder,
+        sort_order: topSortOrder,
         linkedGoalId: null,
         sourceItemId: null,
         entryType: 'manual',
         origin: 'manual',
       })
       console.log("[DIAG] Task created, updating state with:", newTask)
-      // 新任务添加到最下方
+      // 新任务添加到最上方
       setTasks(prev => {
         console.log("[DIAG] setTasks callback called, prev length:", prev.length)
-        return [...prev, newTask]
+        return [newTask, ...prev]
       })
       console.log("[DIAG] setTasks called")
     } catch (error) {
@@ -369,6 +377,16 @@ function App() {
     }
   }, [])
 
+  const handleUpdateTaskNote = useCallback(async (id: string, note: string) => {
+    setTasks((prev) => prev.map((task) => (task.id === id ? { ...task, note } : task)))
+    try {
+      await window.electronAPI.dailyTasks.updateTask(id, { note })
+    } catch (error) {
+      console.error('[App] 更新任务笔记失败:', error)
+      await loadTasks()
+    }
+  }, [loadTasks])
+
   // 判断当前选中的日期是否为过去的日期
   const isPastDate = useCallback(() => {
     const today = new Date()
@@ -378,7 +396,10 @@ function App() {
     return selected < today
   }, [selectedDate])
 
-  const isPlaceholderSection = activeSection !== 'today'
+  const isOkrWorkspace = activeWorkspace === 'okr'
+  const isJournalWorkspace = activeWorkspace === 'journal'
+  const isSettingsWorkspace = activeWorkspace === 'settings'
+  const isPlaceholderWorkspace = !isOkrWorkspace && !isJournalWorkspace && !isSettingsWorkspace
   const workspaceBackground =
     WORKSPACE_THEME_PRESETS.find((preset) => preset.id === workspaceThemeId)?.background ??
     WORKSPACE_THEME_PRESETS[0].background
@@ -396,69 +417,51 @@ function App() {
       <DragProvider onDragEnd={handleDragEnd}>
         <div className="h-full w-full bg-transparent">
           <div className="flex h-full w-full overflow-hidden">
-            <AppSidebarRail activeSection={activeSection} onSelect={setActiveSection} />
+            <AppSidebarRail activeSection={activeWorkspace} onSelect={setActiveWorkspace} />
 
             <div className="min-w-0 flex-1">
-              {activeSection === 'settings' ? (
+              {isSettingsWorkspace ? (
                 <SettingsWorkspace
                   sliderStyle={sliderStyle}
                   onSliderStyleChange={setSliderStyle}
                 />
-              ) : activeSection === 'insights' ? (
+              ) : isJournalWorkspace ? (
                 <JournalWorkspace />
-              ) : isPlaceholderSection ? (
-                <PlaceholderWorkspace section={activeSection} />
+              ) : isPlaceholderWorkspace ? (
+                <PlaceholderWorkspace section={activeWorkspace} />
               ) : (
-                <ResizableLayout
-                  leftPanel={<Sidebar activeObjective={activeObjective} onSetActive={handleSetActiveObjective} onAddToDailyTasks={handleAddToDailyTasks} onOpenObjectiveBoard={handleOpenObjectiveBoard} refreshTrigger={sidebarRefreshTrigger} shouldScrollToActive={shouldScrollToActive} sliderStyle={sliderStyle} onOpenWorkspaceThemeMenu={setWorkspaceThemeMenu} />}
-                  centerPanel={
-                    <MainBoard
-                      tasks={tasks}
-                      selectedDate={selectedDate}
-                      onDateChange={setSelectedDate}
-                      onCreateTask={handleCreateTask}
-                      onToggleTask={handleToggleTask}
-                      onDeleteTask={handleDeleteTask}
-                      onUpdateTaskContent={handleUpdateTaskContent}
-                      onMoveTaskToToday={handleMoveTaskToToday}
-                      onSetActiveObjective={handleSetActiveObjective}
-                      highlightedTaskId={highlightedTaskId}
-                      highlightedSourceItemIds={highlightedSourceItemIds}
-                      isPastDate={isPastDate()}
-                      onReorderTasks={handleReorderTasks}
-                      onExecutionItemsChanged={handleExecutionItemsChanged}
-                    />
-                  }
-                  rightPanel={<Timeline />}
-                  fullWidthPanel={
-                    todayViewMode === 'objective-board' && focusedObjectiveBoard
-                      ? (
-                        <div
-                          className="h-full w-full bg-white"
-                          data-objective-board-id={focusedObjectiveBoard.id}
-                          aria-label={focusedObjectiveBoard.title}
-                        >
-                          <div className="h-full w-full" />
-                        </div>
-                      )
-                      : undefined
-                  }
+                <OkrWorkspace
+                  apiUnavailableMessage={apiUnavailableMessage}
+                  activeObjective={activeObjective}
+                  shouldScrollToActive={shouldScrollToActive}
+                  sidebarRefreshTrigger={sidebarRefreshTrigger}
+                  sliderStyle={sliderStyle}
                   workspaceBackground={workspaceBackground}
-                  leftPanelConfig={{
-                    minWidth: 200,
-                    defaultWidth: 380,
-                    maxWidth: 500,
-                  }}
-                  rightPanelConfig={{
-                    minWidth: 250,
-                    defaultWidth: 300,
-                    maxWidth: 500,
-                  }}
+                  tasks={tasks}
+                  selectedDate={selectedDate}
+                  highlightedTaskId={highlightedTaskId}
+                  highlightedSourceItemIds={highlightedSourceItemIds}
+                  focusedObjectiveBoard={focusedObjectiveBoard}
+                  okrViewMode={okrViewMode}
+                  onSetActiveObjective={handleSetActiveObjective}
+                  onAddToDailyTasks={handleAddToDailyTasks}
+                  onOpenObjectiveBoard={handleOpenObjectiveBoard}
+                  onOpenWorkspaceThemeMenu={setWorkspaceThemeMenu}
+                  onDateChange={setSelectedDate}
+                  onCreateTask={handleCreateTask}
+                  onToggleTask={handleToggleTask}
+                  onDeleteTask={handleDeleteTask}
+                  onUpdateTaskContent={handleUpdateTaskContent}
+                  onMoveTaskToToday={handleMoveTaskToToday}
+                  onReorderTasks={handleReorderTasks}
+                  onExecutionItemsChanged={handleExecutionItemsChanged}
+                  onUpdateTaskNote={handleUpdateTaskNote}
+                  isPastDate={isPastDate()}
                 />
               )}
             </div>
           </div>
-          {workspaceThemeMenu && activeSection === 'today' && (
+          {workspaceThemeMenu && isOkrWorkspace && (
             <div
               className="fixed z-[100] max-h-[420px] min-w-[196px] overflow-y-auto rounded-2xl border border-black/[0.08] bg-white/92 p-2 shadow-[0_18px_50px_rgba(15,23,42,0.18)] backdrop-blur-xl"
               style={{ left: workspaceThemeMenu.x, top: workspaceThemeMenu.y }}

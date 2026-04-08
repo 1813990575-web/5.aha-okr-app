@@ -1,31 +1,27 @@
 import React from 'react'
-import type { AppSection } from './AppSidebarRail'
+import type { WorkspaceId } from '../workspaces/types'
 
-const PLACEHOLDER_COPY: Record<Exclude<AppSection, 'today'>, { title: string; description: string }> = {
-  insights: {
-    title: '数据视图',
-    description: '这里先留空，后续可以放统计图表、周报与趋势分析。',
+const PLACEHOLDER_COPY: Record<Exclude<WorkspaceId, 'okr' | 'journal'>, { title: string; description: string }> = {
+  peopleWorkspace: {
+    title: '成员工作区',
+    description: '这里先留空，后续可以放团队成员、协作分工与负责人信息，作为一个独立功能继续扩展。',
   },
-  people: {
-    title: '成员视图',
-    description: '这里先留空，后续可以放团队成员、协作分工与负责人信息。',
+  knowledgeWorkspace: {
+    title: '知识工作区',
+    description: '这里先留空，后续可以放方法论、文档沉淀与项目资料，保持为独立 workspace。',
   },
-  knowledge: {
-    title: '知识视图',
-    description: '这里先留空，后续可以放方法论、文档沉淀与项目资料。',
-  },
-  favorites: {
-    title: '收藏视图',
-    description: '这里先留空，后续可以放常用目标、模板或快捷入口。',
+  favoritesWorkspace: {
+    title: '收藏工作区',
+    description: '这里先留空，后续可以放常用目标、模板或快捷入口，作为独立模块接入。',
   },
   settings: {
-    title: '设置视图',
+    title: '设置工作区',
     description: '这里先留空，后续可以放账户、偏好设置与应用配置。',
   },
 }
 
 interface PlaceholderWorkspaceProps {
-  section: Exclude<AppSection, 'today'>
+  section: Exclude<WorkspaceId, 'okr' | 'journal'>
 }
 
 export const PlaceholderWorkspace: React.FC<PlaceholderWorkspaceProps> = ({ section }) => {

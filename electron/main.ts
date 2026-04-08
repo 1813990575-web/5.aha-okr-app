@@ -36,6 +36,11 @@ import {
   toggleDailyTaskStatus,
   unlinkDailyTasksByGoalId,
   getTodayString,
+  getAllJournalRecords,
+  getJournalRecordsByDate,
+  getJournalRecordById,
+  createJournalRecord,
+  updateJournalRecord,
   // 强制保存
   forceSyncSave,
 } from '../src/store/index'
@@ -62,7 +67,7 @@ function createWindow() {
   })
 
   // 加载应用
-  if (process.env.VITE_DEV_SERVER_URL) {
+  if (!app.isPackaged && process.env.VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL)
     mainWindow.webContents.openDevTools()
   } else {
@@ -311,6 +316,53 @@ function setupIpcHandlers() {
       return getTodayString()
     } catch (error) {
       console.error('[IPC] getTodayString 错误:', error)
+      throw error
+    }
+  })
+
+  // ==================== JournalRecords 操作 ====================
+
+  ipcMain.handle('journal:getAllRecords', async () => {
+    try {
+      return getAllJournalRecords()
+    } catch (error) {
+      console.error('[IPC] getAllJournalRecords 错误:', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('journal:getRecordsByDate', async (_, dateKey: string) => {
+    try {
+      return getJournalRecordsByDate(dateKey)
+    } catch (error) {
+      console.error('[IPC] getJournalRecordsByDate 错误:', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('journal:getRecordById', async (_, id: string) => {
+    try {
+      return getJournalRecordById(id)
+    } catch (error) {
+      console.error('[IPC] getJournalRecordById 错误:', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('journal:createRecord', async (_, data: any) => {
+    try {
+      return createJournalRecord(data)
+    } catch (error) {
+      console.error('[IPC] createJournalRecord 错误:', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('journal:updateRecord', async (_, id: string, updates: any) => {
+    try {
+      return updateJournalRecord(id, updates)
+    } catch (error) {
+      console.error('[IPC] updateJournalRecord 错误:', error)
       throw error
     }
   })

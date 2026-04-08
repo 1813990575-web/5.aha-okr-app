@@ -25,6 +25,7 @@ export interface Item {
 export interface DailyTask {
   id: string
   content: string
+  note?: string
   isDone: boolean
   date: string // YYYY-MM-DD
   sort_order: number
@@ -37,15 +38,26 @@ export interface DailyTask {
   updated_at: string
 }
 
+export interface JournalRecord {
+  id: string
+  dateKey: string
+  note: string
+  imageDataUrls: string[]
+  createdAt: number
+  updatedAt?: number
+}
+
 export interface StoreSchema {
   items: Item[]
   dailyTasks: DailyTask[]
+  journalRecords: JournalRecord[]
 }
 
 // 内存中的数据缓存
 let memoryCache: StoreSchema = {
   items: [],
   dailyTasks: [],
+  journalRecords: [],
 }
 
 let dataFilePath: string | null = null
@@ -111,6 +123,22 @@ function getDataFilePath(): string {
   return path.join(dataDir, 'db.json')
 }
 
+function normalizeJournalRecord(record: Partial<JournalRecord> & { imageDataUrl?: string | null }): JournalRecord {
+  const legacyImage = typeof record.imageDataUrl === 'string' ? [record.imageDataUrl] : []
+  const imageDataUrls = Array.isArray(record.imageDataUrls)
+    ? record.imageDataUrls.filter((value): value is string => typeof value === 'string' && value.length > 0)
+    : legacyImage
+
+  return {
+    id: String(record.id ?? generateUUID()),
+    dateKey: typeof record.dateKey === 'string' ? record.dateKey : getTodayString(),
+    note: typeof record.note === 'string' ? record.note : '',
+    imageDataUrls,
+    createdAt: typeof record.createdAt === 'number' ? record.createdAt : Date.now(),
+    updatedAt: typeof record.updatedAt === 'number' ? record.updatedAt : undefined,
+  }
+}
+
 /**
  * 从文件加载数据
  */
@@ -125,15 +153,16 @@ function loadFromFile(): void {
       memoryCache = {
         items: parsed.items || [],
         dailyTasks: (parsed.dailyTasks || []).map(normalizeDailyTask),
+        journalRecords: (parsed.journalRecords || []).map(normalizeJournalRecord),
       }
       console.log('[Store] 从文件加载数据成功:', filePath)
     } else {
       console.log('[Store] 数据文件不存在，使用默认空数据:', filePath)
-      memoryCache = { items: [], dailyTasks: [] }
+      memoryCache = { items: [], dailyTasks: [], journalRecords: [] }
     }
   } catch (error) {
     console.error('[Store] 从文件加载数据失败:', error)
-    memoryCache = { items: [], dailyTasks: [] }
+    memoryCache = { items: [], dailyTasks: [], journalRecords: [] }
     initError = error as Error
   }
 }
@@ -197,6 +226,7 @@ function normalizeDailyTask(task: Partial<DailyTask>): DailyTask {
   return {
     id: task.id || generateUUID(),
     content: task.content || '',
+    note: typeof task.note === 'string' ? task.note : '',
     isDone: !!task.isDone,
     date: task.date || getTodayString(),
     sort_order: typeof task.sort_order === 'number' ? task.sort_order : 0,
@@ -606,6 +636,66 @@ export function unlinkDailyTasksByGoalId(goalId: string): void {
 
 // ==================== 数据迁移与种子 ====================
 
+// ==================== JournalRecords 操作 ====================
+
+export function getAllJournalRecords(): JournalRecord[] {
+  if (!isInitialized) {
+    console.error('[Store] 无法获取 JournalRecords，Store 未初始化')
+    return []
+  }
+
+  return (memoryCache.journalRecords || [])
+    .map(normalizeJournalRecord)
+    .sort((a, b) => b.createdAt - a.createdAt)
+}
+
+export function getJournalRecordsByDate(dateKey: string): JournalRecord[] {
+  return getAllJournalRecords().filter((record) => record.dateKey === dateKey)
+}
+
+export function getJournalRecordById(id: string): JournalRecord | null {
+  return getAllJournalRecords().find((record) => record.id === id) || null
+}
+
+export function createJournalRecord(data: Omit<JournalRecord, 'id'> & { id?: string }): JournalRecord {
+  if (!isInitialized) {
+    console.error('[Store] 无法创建 JournalRecord，Store 未初始化')
+    throw new Error('Store not initialized')
+  }
+
+  const newRecord = normalizeJournalRecord({
+    ...data,
+    id: data.id || generateUUID(),
+  })
+
+  memoryCache.journalRecords = [newRecord, ...(memoryCache.journalRecords || [])]
+  saveToFile()
+  return newRecord
+}
+
+export function updateJournalRecord(
+  id: string,
+  updates: Partial<Omit<JournalRecord, 'id' | 'createdAt'>>
+): JournalRecord | null {
+  if (!isInitialized) {
+    console.error('[Store] 无法更新 JournalRecord，Store 未初始化')
+    return null
+  }
+
+  const index = memoryCache.journalRecords.findIndex((record) => record.id === id)
+  if (index === -1) return null
+
+  const updatedRecord = normalizeJournalRecord({
+    ...memoryCache.journalRecords[index],
+    ...updates,
+    updatedAt: Date.now(),
+  })
+
+  memoryCache.journalRecords[index] = updatedRecord
+  saveToFile()
+  return updatedRecord
+}
+
 /**
  * 种子数据 - 初始化示例数据
  */
@@ -703,6 +793,7 @@ export function reseedData(): void {
   try {
     memoryCache.items = []
     memoryCache.dailyTasks = []
+    memoryCache.journalRecords = []
     saveToFile()
     seedData()
   } catch (error) {

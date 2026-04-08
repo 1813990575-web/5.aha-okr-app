@@ -1,5 +1,6 @@
 export interface JournalRecord {
   id: string
+  dateKey: string
   note: string
   imageDataUrls: string[]
   createdAt: number

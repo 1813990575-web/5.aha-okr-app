@@ -7,14 +7,9 @@ import {
   Sparkles,
   UserRound,
 } from 'lucide-react'
+import type { WorkspaceId } from '../workspaces/types'
 
-export type AppSection =
-  | 'today'
-  | 'insights'
-  | 'people'
-  | 'knowledge'
-  | 'favorites'
-  | 'settings'
+export type AppSection = WorkspaceId
 
 interface NavItem {
   id: AppSection
@@ -23,11 +18,11 @@ interface NavItem {
 }
 
 const TOP_NAV_ITEMS: NavItem[] = [
-  { id: 'today', label: '今日', icon: Clock3 },
-  { id: 'insights', label: '数据', icon: BarChart3 },
-  { id: 'people', label: '成员', icon: UserRound },
-  { id: 'knowledge', label: '知识', icon: BookOpen },
-  { id: 'favorites', label: '收藏', icon: Sparkles },
+  { id: 'okr', label: 'OKR', icon: Clock3 },
+  { id: 'journal', label: '日记', icon: BarChart3 },
+  { id: 'peopleWorkspace', label: '成员', icon: UserRound },
+  { id: 'knowledgeWorkspace', label: '知识', icon: BookOpen },
+  { id: 'favoritesWorkspace', label: '收藏', icon: Sparkles },
 ]
 
 const BOTTOM_NAV_ITEMS: NavItem[] = [

@@ -52,6 +52,7 @@ function buildPreviewText(note: string) {
 }
 
 interface MiniCalendarPanelProps {
+  width: number
   monthLabel: string
   selectedYear: number
   displayMonth: number
@@ -66,6 +67,7 @@ interface MiniCalendarPanelProps {
 }
 
 const MiniCalendarPanel: React.FC<MiniCalendarPanelProps> = ({
+  width,
   monthLabel,
   selectedYear,
   displayMonth,
@@ -95,7 +97,10 @@ const MiniCalendarPanel: React.FC<MiniCalendarPanelProps> = ({
   }, [showYearMenu])
 
   return (
-    <div className="relative z-10 flex min-w-0 flex-[0.46] flex-col gap-5 px-3 py-2 shadow-[18px_0_34px_-30px_rgba(86,72,56,0.3)]">
+    <div
+      className="relative z-10 flex min-w-0 flex-shrink-0 flex-col gap-5 px-5 py-2"
+      style={{ width }}
+    >
       <div className="flex items-center justify-between gap-3">
         <button type="button" onClick={onPreviousMonth} className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-black/[0.06] bg-white/78 text-[#4b5461] transition-colors hover:bg-black/[0.04]" aria-label="上个月">
           <ChevronLeft className="h-4 w-4" />
@@ -138,7 +143,7 @@ const MiniCalendarPanel: React.FC<MiniCalendarPanelProps> = ({
         </button>
       </div>
 
-      <div className="grid grid-cols-7 gap-2 px-0.5">
+      <div className="grid grid-cols-7 gap-2">
         {WEEKDAY_LABELS.map((label, index) => (
           <div key={`${label}-${index}`} className="text-center text-[11px] font-semibold tracking-[0.08em] text-black/34">
             {label}
@@ -213,10 +218,7 @@ const MiniCalendarPanel: React.FC<MiniCalendarPanelProps> = ({
           <div className="text-[12px] text-black/34">{monthLabel}</div>
         </div>
 
-        <div className="flex min-h-[224px] flex-1 flex-col items-center justify-center rounded-[24px] border border-dashed border-black/[0.08] bg-white/34 px-5 text-center">
-          <div className="text-[14px] font-medium text-[#202631]">当月回顾当前为空白区域</div>
-          <div className="mt-2 text-[12px] leading-6 text-black/28">这里的卡片、上传背景、玻璃质感等测试内容已全部移除，后续会从空白重新设计。</div>
-        </div>
+        <div className="min-h-[224px] flex-1 rounded-[24px] bg-transparent" />
       </div>
     </div>
   )
@@ -224,9 +226,10 @@ const MiniCalendarPanel: React.FC<MiniCalendarPanelProps> = ({
 
 export const JournalWorkspace: React.FC = () => {
   const today = new Date()
+  const [calendarPanelWidth, setCalendarPanelWidth] = useState(410)
   const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(today))
   const [selectedDateKey, setSelectedDateKey] = useState(() => formatDateKey(today))
-  const { entriesByDate, appendRecord, updateRecord } = useJournalEntries()
+  const { entriesByDate, appendRecord, updateRecord, isLoaded } = useJournalEntries()
   const [editorText, setEditorText] = useState('')
   const [editorImages, setEditorImages] = useState<string[]>([])
   const [editingRecordId, setEditingRecordId] = useState<string | null>(null)
@@ -235,8 +238,8 @@ export const JournalWorkspace: React.FC = () => {
   const imageInputRef = useRef<HTMLInputElement | null>(null)
   const composerRef = useRef<HTMLDivElement | null>(null)
   const focusTimerRef = useRef<number | null>(null)
+  const resizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null)
   const [isComposerExpanded, setIsComposerExpanded] = useState(false)
-  const editorMaxHeight = 'min(50vh, 420px)'
 
   const monthDays = useMemo(() => buildCalendarDays(visibleMonth), [visibleMonth])
   const monthLabel = `${String(visibleMonth.getFullYear()).slice(-2)} 年 ${visibleMonth.getMonth() + 1} 月`
@@ -307,32 +310,35 @@ export const JournalWorkspace: React.FC = () => {
     }, delay)
   }
 
-  const syncTextareaHeight = () => {
-    const textarea = textareaRef.current
-    if (!textarea) return
-
-    if (!shouldExpandComposer) {
-      textarea.style.height = ''
-      return
-    }
-
-    textarea.style.height = 'auto'
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 420)}px`
-  }
-
-  useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      syncTextareaHeight()
-    })
-
-    return () => window.cancelAnimationFrame(frame)
-  }, [editorText, shouldExpandComposer])
-
   useEffect(() => {
     return () => {
       if (focusTimerRef.current !== null) {
         window.clearTimeout(focusTimerRef.current)
       }
+    }
+  }, [])
+
+  useEffect(() => {
+    const handlePointerMove = (event: PointerEvent) => {
+      const resizeState = resizeStateRef.current
+      if (!resizeState) return
+
+      const nextWidth = resizeState.startWidth + (event.clientX - resizeState.startX)
+      setCalendarPanelWidth(Math.min(520, Math.max(340, nextWidth)))
+    }
+
+    const handlePointerUp = () => {
+      resizeStateRef.current = null
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+
+    window.addEventListener('pointermove', handlePointerMove)
+    window.addEventListener('pointerup', handlePointerUp)
+
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerup', handlePointerUp)
     }
   }, [])
 
@@ -408,12 +414,12 @@ export const JournalWorkspace: React.FC = () => {
     setIsComposerExpanded(false)
   }
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!canSend) return
 
     if (editingRecordId) {
       setRecentlyUpdatedRecordId(editingRecordId)
-      updateRecord(selectedDateKey, editingRecordId, {
+      await updateRecord(selectedDateKey, editingRecordId, {
         note: editorText,
         imageDataUrls: editorImages,
       })
@@ -423,12 +429,13 @@ export const JournalWorkspace: React.FC = () => {
 
     const record: JournalRecord = {
       id: `record-${Date.now()}`,
+      dateKey: selectedDateKey,
       note: editorText,
       imageDataUrls: editorImages,
       createdAt: Date.now(),
     }
 
-    appendRecord(selectedDateKey, record)
+    await appendRecord(selectedDateKey, record)
     resetComposer()
   }
 
@@ -493,6 +500,7 @@ export const JournalWorkspace: React.FC = () => {
 
       <div className="flex flex-1 gap-5 px-5 pb-5 pt-1">
         <MiniCalendarPanel
+          width={calendarPanelWidth}
           monthLabel={monthLabel}
           selectedYear={visibleMonth.getFullYear()}
           displayMonth={visibleMonth.getMonth()}
@@ -509,17 +517,29 @@ export const JournalWorkspace: React.FC = () => {
           onYearChange={(year) => setVisibleMonth(new Date(year, visibleMonth.getMonth(), 1))}
         />
 
+        <button
+          type="button"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="调整月历宽度"
+          onPointerDown={(event) => {
+            resizeStateRef.current = {
+              startX: event.clientX,
+              startWidth: calendarPanelWidth,
+            }
+            document.body.style.cursor = 'col-resize'
+            document.body.style.userSelect = 'none'
+          }}
+          className="group relative -mx-2 w-4 flex-shrink-0 cursor-col-resize self-stretch bg-transparent p-0"
+        >
+          <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-black/[0.07] transition-colors group-hover:bg-[#c9a27a] group-active:bg-[#b78a60]" />
+        </button>
+
         <div className="flex min-w-[380px] flex-[1.02] flex-col rounded-none bg-transparent pl-5 pr-4 pt-0 pb-0 shadow-none">
-          <AnimatePresence initial={false} mode="sync">
-            {isEditingRecord ? (
-              <motion.div
-                key="record-editor"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 1, y: 0, transition: { duration: 0 } }}
-                transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-                className="flex h-full flex-col rounded-[28px] border border-black/[0.06] bg-white/70 px-6 py-5 shadow-[0_18px_44px_rgba(15,23,42,0.06)] backdrop-blur-xl"
-              >
+          {isEditingRecord ? (
+            <div
+              className="flex h-full flex-col rounded-[28px] border border-black/[0.06] bg-white/70 px-6 py-5 shadow-[0_18px_44px_rgba(15,23,42,0.06)] backdrop-blur-xl"
+            >
                 <div className="mb-4 flex items-center justify-between">
                   <div className="text-[13px] font-medium tracking-[0.08em] text-black/28">编辑记录</div>
                   <button
@@ -537,8 +557,7 @@ export const JournalWorkspace: React.FC = () => {
                   value={editorText}
                   onChange={(event) => setEditorText(event.target.value)}
                   placeholder="编辑这条记录..."
-                  style={{ maxHeight: editorMaxHeight }}
-                  className="min-h-[180px] w-full resize-none border-none bg-transparent text-[16px] leading-8 text-[#202631] outline-none"
+                  className="h-[220px] w-full resize-none border-none bg-transparent text-[16px] leading-8 text-[#202631] outline-none"
                 />
 
                 {renderEditorImages('h-[84px] w-[84px]')}
@@ -564,80 +583,68 @@ export const JournalWorkspace: React.FC = () => {
                   className="hidden"
                   onChange={handleImageChange}
                 />
-              </motion.div>
-            ) : (
-              <div key="composer-timeline">
-              <motion.div
-                layout
-                transition={{ layout: { duration: 0.22, ease: [0.25, 0.46, 0.45, 0.94] } }}
-                ref={composerRef}
-                onClick={() => {
-                  if (!shouldExpandComposer) expandComposer()
-                }}
-                className={`will-change-transform rounded-[26px] border border-black/[0.08] bg-white px-5 shadow-[0_8px_24px_rgba(15,23,42,0.05)] ${shouldExpandComposer ? 'py-4' : 'py-2.5'}`}
-              >
+            </div>
+          ) : (
+            <div>
                 <motion.div
-                  layout
-                  transition={{ layout: { duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] } }}
-                  className={`flex items-center gap-3 ${shouldExpandComposer ? '' : 'min-h-[40px]'}`}
+                  ref={composerRef}
+                  onClick={() => {
+                    if (!shouldExpandComposer) expandComposer()
+                  }}
+                  initial={false}
+                  animate={{
+                    paddingTop: shouldExpandComposer ? 16 : 10,
+                    paddingBottom: shouldExpandComposer ? 16 : 10,
+                    boxShadow: shouldExpandComposer
+                      ? '0 14px 30px rgba(15,23,42,0.07)'
+                      : '0 8px 24px rgba(15,23,42,0.05)',
+                  }}
+                  transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+                  className="will-change-transform rounded-[26px] border border-black/[0.08] bg-white px-5 shadow-[0_8px_24px_rgba(15,23,42,0.05)]"
                 >
-                  <textarea
-                    ref={textareaRef}
-                    value={editorText}
-                    onFocus={() => setIsComposerExpanded(true)}
-                    onChange={(event) => setEditorText(event.target.value)}
-                    placeholder="现在的想法是..."
-                    style={shouldExpandComposer ? { maxHeight: editorMaxHeight } : undefined}
-                    className={`w-full resize-none border-none bg-transparent text-[15px] text-[#202631] outline-none placeholder:text-black/28 ${shouldExpandComposer ? 'min-h-[88px] overflow-y-auto leading-7' : 'h-7 min-h-[28px] overflow-hidden pt-0 leading-7'}`}
-                  />
+                  <div className={`flex items-center gap-3 ${shouldExpandComposer ? 'items-start' : 'min-h-[40px]'}`}>
+                    <textarea
+                      ref={textareaRef}
+                      value={editorText}
+                      onFocus={() => setIsComposerExpanded(true)}
+                      onChange={(event) => setEditorText(event.target.value)}
+                      placeholder="现在的想法是..."
+                      className={`w-full resize-none border-none bg-transparent text-[15px] text-[#202631] outline-none placeholder:text-black/28 transition-[height] duration-180 ease-out ${shouldExpandComposer ? 'h-[132px] overflow-y-auto leading-7' : 'h-7 min-h-[28px] overflow-hidden pt-0 leading-7'}`}
+                    />
 
-                  <AnimatePresence initial={false}>
-                    {!shouldExpandComposer && (
-                      <motion.button
-                        key="collapsed-send"
-                        type="button"
-                        initial={{ opacity: 0, scale: 0.97 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.97, transition: { duration: 0.1 } }}
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          expandComposer()
-                        }}
-                        className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border border-[#dfddda] bg-[#e7e5e2] text-white transition-colors duration-150 hover:bg-[#ddd9d4]"
-                        aria-label="展开编辑"
-                      >
-                        <ArrowUp className="h-4 w-4 stroke-[2.35]" />
-                      </motion.button>
-                    )}
-                  </AnimatePresence>
-                </motion.div>
+                    <AnimatePresence initial={false}>
+                      {!shouldExpandComposer && (
+                        <motion.button
+                          key="collapsed-send"
+                          type="button"
+                          initial={{ opacity: 0, scale: 0.97 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.97, transition: { duration: 0.1 } }}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            expandComposer()
+                          }}
+                          className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border border-[#dfddda] bg-[#e7e5e2] text-white transition-colors duration-150 hover:bg-[#ddd9d4]"
+                          aria-label="展开编辑"
+                        >
+                          <ArrowUp className="h-4 w-4 stroke-[2.35]" />
+                        </motion.button>
+                      )}
+                    </AnimatePresence>
+                  </div>
 
-                <AnimatePresence initial={false}>
-                  {editorImages.length > 0 && (
-                    <motion.div
-                      key="composer-images"
-                      layout
-                      initial={{ opacity: 0, y: 4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -3, transition: { duration: 0.12 } }}
-                      transition={{ duration: 0.16, ease: [0.25, 0.46, 0.45, 0.94] }}
-                    >
-                      {renderEditorImages('h-[72px] w-[72px]')}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                  <div
+                    className={`overflow-hidden transition-[max-height,opacity,transform,margin] duration-180 ease-out ${editorImages.length > 0 ? 'mt-4 max-h-[140px] translate-y-0 opacity-100' : 'mt-0 max-h-0 -translate-y-1 opacity-0'}`}
+                    aria-hidden={editorImages.length === 0}
+                  >
+                    {editorImages.length > 0 ? renderEditorImages('h-[72px] w-[72px]') : null}
+                  </div>
 
-                <AnimatePresence initial={false}>
-                  {shouldExpandComposer && (
-                    <motion.div
-                      key="composer-toolbar"
-                      layout
-                      initial={{ opacity: 0, y: 5 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -4, transition: { duration: 0.1 } }}
-                      transition={{ duration: 0.16, ease: [0.25, 0.46, 0.45, 0.94] }}
-                      className="mt-6 flex items-center justify-between will-change-transform"
-                    >
+                  <div
+                    className={`overflow-hidden transition-[max-height,opacity,transform,margin] duration-180 ease-out ${shouldExpandComposer ? 'mt-6 max-h-20 translate-y-0 opacity-100' : 'mt-0 max-h-0 -translate-y-1 opacity-0'}`}
+                    aria-hidden={!shouldExpandComposer}
+                  >
+                    <div className="flex items-center justify-between will-change-transform">
                       {renderToolbar()}
                       <button
                         type="button"
@@ -655,93 +662,93 @@ export const JournalWorkspace: React.FC = () => {
                       >
                         <ArrowUp className="h-4 w-4 stroke-[2.4]" />
                       </button>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                <input
-                  ref={imageInputRef}
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  className="hidden"
-                  onChange={handleImageChange}
-                />
-              </motion.div>
-
-              <div className="mt-10 flex min-h-0 flex-1 flex-col px-2">
-                <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-                  {timelineRecords.length === 0 ? (
-                    <div className="pt-8 text-center text-[14px] text-black/22">发送后，这一天的内容会记录在这里</div>
-                  ) : (
-                    <div className="space-y-5">
-                      {timelineRecords.map((record) => {
-                        const previewText = buildPreviewText(record.note)
-                        const thumbnail = record.imageDataUrls[0]
-                        return (
-                          <motion.article
-                            key={record.id}
-                            onDoubleClick={() => startRecordEdit(record)}
-                            className="grid cursor-text grid-cols-[72px_minmax(0,1fr)_56px] items-center gap-x-1"
-                            initial={false}
-                            animate={
-                              recentlyUpdatedRecordId === record.id
-                                ? {
-                                    backgroundColor: [
-                                      'rgba(214,168,112,0)',
-                                      'rgba(214,168,112,0.13)',
-                                      'rgba(214,168,112,0)',
-                                    ],
-                                    x: [0, 2, 0],
-                                  }
-                                : { backgroundColor: 'rgba(214,168,112,0)', x: 0 }
-                            }
-                            transition={{
-                              duration: recentlyUpdatedRecordId === record.id ? 1.1 : 0.18,
-                              ease: [0.22, 1, 0.36, 1],
-                            }}
-                            style={{ borderRadius: 16 }}
-                          >
-                            <div className="flex items-center gap-1.5 text-[13px] leading-6 text-black/30">
-                              <span className="h-2.5 w-2.5 rounded-full bg-[#cf9a61] shadow-[0_0_0_1px_rgba(207,154,97,0.14)]" />
-                              <span>{formatTimelineTime(record.createdAt)}</span>
-                            </div>
-                            <div className="min-w-0">
-                              {previewText ? (
-                                <p
-                                  className="text-[15px] font-medium leading-6 text-[#202631]"
-                                  style={{
-                                    display: '-webkit-box',
-                                    WebkitLineClamp: 1,
-                                    WebkitBoxOrient: 'vertical',
-                                    overflow: 'hidden',
-                                  }}
-                                >
-                                  {previewText}
-                                </p>
-                              ) : (
-                                <p className="text-[15px] font-medium leading-6 text-black/26">仅上传了图片</p>
-                              )}
-                            </div>
-                            <div className="flex justify-end">
-                              {thumbnail ? (
-                                <div className="h-12 w-12 overflow-hidden rounded-[14px] border border-black/[0.06] bg-[#ece8e0]">
-                                  <img src={thumbnail} alt="record cover" className="h-full w-full object-cover" />
-                                </div>
-                              ) : (
-                                <div className="h-12 w-12" />
-                              )}
-                            </div>
-                          </motion.article>
-                        )
-                      })}
                     </div>
-                  )}
+                  </div>
+
+                  <input
+                    ref={imageInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={handleImageChange}
+                  />
+                </motion.div>
+
+                <div className="mt-10 flex min-h-0 flex-1 flex-col px-2">
+                  <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+                    {timelineRecords.length === 0 ? (
+                    <div className="pt-8 text-center text-[14px] text-black/22">
+                      {isLoaded ? '发送后，这一天的内容会记录在这里' : '正在加载记录...'}
+                    </div>
+                    ) : (
+                      <div className="space-y-5">
+                        {timelineRecords.map((record) => {
+                          const previewText = buildPreviewText(record.note)
+                          const thumbnail = record.imageDataUrls[0]
+                          return (
+                            <motion.article
+                              key={record.id}
+                              onDoubleClick={() => startRecordEdit(record)}
+                              className="grid cursor-text grid-cols-[72px_minmax(0,1fr)_56px] items-center gap-x-1"
+                              initial={false}
+                              animate={
+                                recentlyUpdatedRecordId === record.id
+                                  ? {
+                                      backgroundColor: [
+                                        'rgba(214,168,112,0)',
+                                        'rgba(214,168,112,0.13)',
+                                        'rgba(214,168,112,0)',
+                                      ],
+                                      x: [0, 2, 0],
+                                    }
+                                  : { backgroundColor: 'rgba(214,168,112,0)', x: 0 }
+                              }
+                              transition={{
+                                duration: recentlyUpdatedRecordId === record.id ? 1.1 : 0.18,
+                                ease: [0.22, 1, 0.36, 1],
+                              }}
+                              style={{ borderRadius: 16 }}
+                            >
+                              <div className="flex items-center gap-1.5 text-[13px] leading-6 text-black/30">
+                                <span className="h-2.5 w-2.5 rounded-full bg-[#cf9a61] shadow-[0_0_0_1px_rgba(207,154,97,0.14)]" />
+                                <span>{formatTimelineTime(record.createdAt)}</span>
+                              </div>
+                              <div className="min-w-0">
+                                {previewText ? (
+                                  <p
+                                    className="text-[15px] font-medium leading-6 text-[#202631]"
+                                    style={{
+                                      display: '-webkit-box',
+                                      WebkitLineClamp: 1,
+                                      WebkitBoxOrient: 'vertical',
+                                      overflow: 'hidden',
+                                    }}
+                                  >
+                                    {previewText}
+                                  </p>
+                                ) : (
+                                  <p className="text-[15px] font-medium leading-6 text-black/26">仅上传了图片</p>
+                                )}
+                              </div>
+                              <div className="flex justify-end">
+                                {thumbnail ? (
+                                  <div className="h-12 w-12 overflow-hidden rounded-[14px] border border-black/[0.06] bg-[#ece8e0]">
+                                    <img src={thumbnail} alt="record cover" className="h-full w-full object-cover" />
+                                  </div>
+                                ) : (
+                                  <div className="h-12 w-12" />
+                                )}
+                              </div>
+                            </motion.article>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-              </div>
-            )}
-          </AnimatePresence>
+            </div>
+          )}
         </div>
       </div>
     </section>

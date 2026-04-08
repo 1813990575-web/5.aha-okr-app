@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react'
+import { DAILY_TASK_ROW_BASE_CLASS } from './taskRowStyles'
 
 interface TaskInputProps {
   onSubmit: (content: string) => Promise<void> | void
@@ -9,9 +10,6 @@ export const TaskInput: React.FC<TaskInputProps> = ({ onSubmit, disabled }) => {
   const [content, setContent] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
-
-  // 诊断日志：每次渲染时打印当前值
-  console.log("[DIAG] Component Re-rendered with value:", content)
 
   const handleSubmit = async () => {
     const trimmed = content.trim()
@@ -43,8 +41,7 @@ export const TaskInput: React.FC<TaskInputProps> = ({ onSubmit, disabled }) => {
   return (
     <div
       className={`
-        group mx-6 mb-1.5 flex items-center gap-3 rounded-2xl border border-transparent px-6 py-3.5
-        transition-all duration-300 cursor-text
+        ${DAILY_TASK_ROW_BASE_CLASS} cursor-text
         hover:bg-[#f7f8fa]
         ${disabled || isSubmitting ? 'opacity-50 pointer-events-none' : ''}
       `}
@@ -59,7 +56,6 @@ export const TaskInput: React.FC<TaskInputProps> = ({ onSubmit, disabled }) => {
         type="text"
         value={content}
         onChange={(e) => {
-          console.log("[DIAG] Input Triggered:", e.target.value)
           setContent(e.target.value)
         }}
         onKeyDown={handleKeyDown}
