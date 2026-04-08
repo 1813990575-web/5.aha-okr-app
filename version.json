@@ -1,5 +1,5 @@
 {
-  "version": "1.0.3",
+  "version": "1.0.4",
   "downloadUrl": "https://github.com/1813990575-web/5.aha-okr-app/releases/latest",
-  "releaseNotes": "v1.0.3 更新内容：\n- UI优化和功能改进\n- 修复 TypeScript 编译错误\n- 优化组件性能"
+  "releaseNotes": "v1.0.4 更新内容：\n- 优化侧边栏二级项目的行间距\n- 修复版本检查地址，改为当前 GitHub 仓库\n- 版本号改为从应用自身读取，减少后续发布出错概率"
 }

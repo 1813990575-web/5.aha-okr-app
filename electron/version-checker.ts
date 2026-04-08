@@ -1,11 +1,8 @@
-import { dialog, shell } from 'electron'
+import { app, dialog, shell } from 'electron'
 import https from 'https'
 
-// 当前应用版本号（与 package.json 保持一致）
-const CURRENT_VERSION = '1.0.3'
-
 // GitHub Raw URL 上的 version.json 地址
-const VERSION_URL = 'https://raw.githubusercontent.com/1813990575-web/5.Aha-OKR/main/version.json'
+const VERSION_URL = 'https://raw.githubusercontent.com/1813990575-web/5.aha-okr-app/main/version.json'
 
 interface VersionInfo {
   version: string
@@ -130,6 +127,7 @@ function showUpdateDialog(versionInfo: VersionInfo): void {
  */
 export async function checkForUpdates(): Promise<void> {
   try {
+    const currentVersion = app.getVersion()
     console.log('[VersionChecker] 正在检查版本更新...')
 
     const remoteVersionInfo = await fetchRemoteVersion()
@@ -139,9 +137,9 @@ export async function checkForUpdates(): Promise<void> {
       return
     }
 
-    console.log(`[VersionChecker] 本地版本: ${CURRENT_VERSION}, 远程版本: ${remoteVersionInfo.version}`)
+    console.log(`[VersionChecker] 本地版本: ${currentVersion}, 远程版本: ${remoteVersionInfo.version}`)
 
-    if (compareVersions(CURRENT_VERSION, remoteVersionInfo.version)) {
+    if (compareVersions(currentVersion, remoteVersionInfo.version)) {
       console.log('[VersionChecker] 发现新版本')
       showUpdateDialog(remoteVersionInfo)
     } else {
@@ -157,5 +155,5 @@ export async function checkForUpdates(): Promise<void> {
  * 获取当前版本号
  */
 export function getCurrentVersion(): string {
-  return CURRENT_VERSION
+  return app.getVersion()
 }
