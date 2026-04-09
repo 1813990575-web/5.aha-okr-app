@@ -24,7 +24,6 @@ import {
   toggleItemStatus,
   updateItemSortOrder,
   shiftSortOrders,
-  seedData,
   reseedData,
   // DailyTasks 操作
   getAllDailyTasks,
@@ -95,8 +94,6 @@ function initializeStore(forceReseed = false) {
     }
     if (forceReseed) {
       reseedData()
-    } else {
-      seedData()
     }
     console.log('[Main] Store 初始化成功')
     return { success: true }

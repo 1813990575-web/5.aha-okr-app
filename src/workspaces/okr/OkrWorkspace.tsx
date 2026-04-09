@@ -116,6 +116,13 @@ export const OkrWorkspace: React.FC<OkrWorkspaceProps> = ({
                 >
                   <ObjectiveBoard
                     objective={focusedObjectiveBoard}
+                    tasks={tasks}
+                    onCreateTask={onCreateTask}
+                    onAddToDailyTasks={onAddToDailyTasks}
+                    onToggleTask={onToggleTask}
+                    onDeleteTask={onDeleteTask}
+                    onUpdateTaskContent={onUpdateTaskContent}
+                    onUpdateTaskNote={onUpdateTaskNote}
                     onObjectiveChanged={onExecutionItemsChanged}
                     refreshTrigger={sidebarRefreshTrigger}
                   />

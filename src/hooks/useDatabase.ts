@@ -221,16 +221,16 @@ export function useDatabase() {
   // 完全移除 viewMode 对渲染的硬编码限制
   // ============================================
   useEffect(() => {
-    // 防止空指针：数据未加载完成时使用 fallback
+    // 数据尚未加载完成时保留占位，避免首屏闪空
     if (!isDataLoadedRef.current) {
       setItems(FALLBACK_DATA)
       setLoading(false)
       return
     }
     
-    // 安全检查：allObjectives 为空时显示 fallback
+    // Electron 数据已加载完成后，空库应展示真实空状态，而不是旧测试数据
     if (!allObjectives || allObjectives.length === 0) {
-      setItems(FALLBACK_DATA)
+      setItems([])
       setLoading(false)
       return
     }
