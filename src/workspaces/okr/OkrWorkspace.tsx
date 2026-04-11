@@ -6,6 +6,17 @@ import { ResizableLayout } from '../../components/ResizableLayout'
 import { ObjectiveBoard } from '../../components/ObjectiveBoard'
 import type { DailyTask } from '../../store/index'
 
+const EmptyObjectiveBoardState: React.FC = () => (
+  <div className="flex h-full w-full items-center justify-center bg-[linear-gradient(180deg,#ffffff,#f7f8fa)] px-6">
+    <div className="max-w-md rounded-[28px] border border-black/[0.06] bg-white/88 px-8 py-10 text-center shadow-[0_24px_60px_rgba(15,23,42,0.08)] backdrop-blur-xl">
+      <div className="text-[22px] font-semibold tracking-[-0.03em] text-[#232834]">还没有可展示的分栏目标</div>
+      <p className="mt-3 text-[14px] leading-7 text-[#67707d]">
+        先在左侧创建一个 Objective，或选择一个现有目标，再点击右上角的分栏图标进入梳理页面。
+      </p>
+    </div>
+  </div>
+)
+
 interface OkrWorkspaceProps {
   apiUnavailableMessage: string | null
   activeObjective: string
@@ -107,26 +118,32 @@ export const OkrWorkspace: React.FC<OkrWorkspaceProps> = ({
             />
           }
           fullWidthPanel={
-            okrViewMode === 'objective-board' && focusedObjectiveBoard
+            okrViewMode === 'objective-board'
               ? (
-                <div
-                  className="h-full w-full bg-white"
-                  data-objective-board-id={focusedObjectiveBoard.id}
-                  aria-label={focusedObjectiveBoard.title}
-                >
-                  <ObjectiveBoard
+                focusedObjectiveBoard ? (
+                  <div
+                    className="h-full w-full bg-white"
+                    data-objective-board-id={focusedObjectiveBoard.id}
+                    aria-label={focusedObjectiveBoard.title}
+                  >
+                    <ObjectiveBoard
                     objective={focusedObjectiveBoard}
                     tasks={tasks}
+                    selectedDate={selectedDate}
+                    onDateChange={onDateChange}
                     onCreateTask={onCreateTask}
                     onAddToDailyTasks={onAddToDailyTasks}
                     onToggleTask={onToggleTask}
                     onDeleteTask={onDeleteTask}
                     onUpdateTaskContent={onUpdateTaskContent}
-                    onUpdateTaskNote={onUpdateTaskNote}
-                    onObjectiveChanged={onExecutionItemsChanged}
-                    refreshTrigger={sidebarRefreshTrigger}
-                  />
-                </div>
+                      onUpdateTaskNote={onUpdateTaskNote}
+                      onObjectiveChanged={onExecutionItemsChanged}
+                      refreshTrigger={sidebarRefreshTrigger}
+                    />
+                  </div>
+                ) : (
+                  <EmptyObjectiveBoardState />
+                )
               )
               : undefined
           }

@@ -260,7 +260,7 @@ function App() {
   }, [createLinkedExecutionEntry])
 
   // 处理拖拽结束 - 将 OKR 项拖入中间面板
-  const handleDragEnd = useCallback(async (item: DragItem) => {
+  const handleDragEnd = useCallback(async (item: DragItem, _dropZoneId?: string | null) => {
     console.log('[App] 拖拽结束:', item)
 
     try {

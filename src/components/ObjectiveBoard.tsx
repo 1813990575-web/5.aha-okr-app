@@ -6,10 +6,13 @@ import { Check, MoreHorizontal, Plus, Share, List } from 'lucide-react'
 import type { DailyTask, Item } from '../store/index'
 import { COLOR_OPTIONS } from './Sidebar'
 import { useDragContext, type DragItem } from './dnd/DragProvider'
+import { MainBoard } from './MainBoard'
 
 interface ObjectiveBoardProps {
   objective: { id: string; title: string; color?: string | null }
   tasks: DailyTask[]
+  selectedDate: Date
+  onDateChange: (date: Date) => void
   onCreateTask: (content: string) => void | Promise<void>
   onAddToDailyTasks: (item: { id: string; title: string; color?: string | null; type?: 'O' | 'KR' | 'TODO' }) => void | Promise<void>
   onToggleTask: (id: string) => void | Promise<void>
@@ -30,6 +33,9 @@ type BottomSheetDragState = {
   startY: number
   startTranslateY: number
 }
+
+const PRIMARY_HANDLE_LEFT = 'calc(50% - 120px)'
+const SECONDARY_HANDLE_LEFT = 'calc(50% + 120px)'
 
 const BOTTOM_SHEET_SNAP_TRANSLATES: Record<BottomSheetSnap, number> = {
   closed: 1,
@@ -121,6 +127,8 @@ function sortByOrder<T extends { sort_order: number }>(items: T[]): T[] {
 export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
   objective,
   tasks,
+  selectedDate,
+  onDateChange,
   onCreateTask,
   onAddToDailyTasks,
   onToggleTask,
@@ -149,10 +157,15 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
   const [bottomSheetOkDropFlash, setBottomSheetOkDropFlash] = useState(false)
   const [bottomSheetDragTranslate, setBottomSheetDragTranslate] = useState<number | null>(null)
   const [isBottomSheetDragging, setIsBottomSheetDragging] = useState(false)
+  const [secondaryBottomSheetSnap, setSecondaryBottomSheetSnap] = useState<BottomSheetSnap>('closed')
+  const [secondaryBottomSheetDragTranslate, setSecondaryBottomSheetDragTranslate] = useState<number | null>(null)
+  const [isSecondaryBottomSheetDragging, setIsSecondaryBottomSheetDragging] = useState(false)
   const bottomSheetInputRef = useRef<HTMLInputElement>(null)
   const bottomSheetNoteSaveTimerRef = useRef<number | null>(null)
   const bottomSheetPanelRef = useRef<HTMLDivElement>(null)
   const bottomSheetDragStateRef = useRef<BottomSheetDragState | null>(null)
+  const secondaryBottomSheetPanelRef = useRef<HTMLDivElement>(null)
+  const secondaryBottomSheetDragStateRef = useRef<BottomSheetDragState | null>(null)
   const newTodoInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
   const pendingTodoFocusKrIdRef = useRef<string | null>(null)
   const { activeItem } = useDragContext()
@@ -529,6 +542,28 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
     setBottomSheetSnap((current) => (current === 'closed' ? 'half' : 'closed'))
   }, [])
 
+  const getSecondarySnapTranslatePx = useCallback((snap: BottomSheetSnap) => {
+    const panelHeight = secondaryBottomSheetPanelRef.current?.offsetHeight ?? 0
+    return panelHeight * BOTTOM_SHEET_SNAP_TRANSLATES[snap]
+  }, [])
+
+  const resolveNearestSecondaryBottomSheetSnap = useCallback((translateY: number): BottomSheetSnap => {
+    const panelHeight = secondaryBottomSheetPanelRef.current?.offsetHeight ?? 0
+    if (panelHeight <= 0) return secondaryBottomSheetSnap
+
+    const snapEntries = (Object.entries(BOTTOM_SHEET_SNAP_TRANSLATES) as Array<[BottomSheetSnap, number]>)
+      .map(([snap, ratio]) => [snap, panelHeight * ratio] as const)
+
+    return snapEntries.reduce((closest, current) => (
+      Math.abs(current[1] - translateY) < Math.abs(closest[1] - translateY) ? current : closest
+    ))[0]
+  }, [secondaryBottomSheetSnap])
+
+  const toggleSecondaryBottomSheet = useCallback(() => {
+    setSecondaryBottomSheetDragTranslate(null)
+    setSecondaryBottomSheetSnap((current) => (current === 'closed' ? 'half' : 'closed'))
+  }, [])
+
   const startBottomSheetDrag = useCallback((clientY: number) => {
     const startTranslateY = bottomSheetDragTranslate ?? getSnapTranslatePx(bottomSheetSnap)
     bottomSheetDragStateRef.current = { startY: clientY, startTranslateY }
@@ -537,6 +572,15 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
     document.body.style.cursor = 'row-resize'
     document.body.style.userSelect = 'none'
   }, [bottomSheetDragTranslate, bottomSheetSnap, getSnapTranslatePx])
+
+  const startSecondaryBottomSheetDrag = useCallback((clientY: number) => {
+    const startTranslateY = secondaryBottomSheetDragTranslate ?? getSecondarySnapTranslatePx(secondaryBottomSheetSnap)
+    secondaryBottomSheetDragStateRef.current = { startY: clientY, startTranslateY }
+    setIsSecondaryBottomSheetDragging(true)
+    setSecondaryBottomSheetDragTranslate(startTranslateY)
+    document.body.style.cursor = 'row-resize'
+    document.body.style.userSelect = 'none'
+  }, [getSecondarySnapTranslatePx, secondaryBottomSheetDragTranslate, secondaryBottomSheetSnap])
 
   useEffect(() => {
     if (!isBottomSheetDragging) return
@@ -578,11 +622,57 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
     }
   }, [bottomSheetDragTranslate, bottomSheetSnap, isBottomSheetDragging, resolveNearestBottomSheetSnap])
 
+  useEffect(() => {
+    if (!isSecondaryBottomSheetDragging) return
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const dragState = secondaryBottomSheetDragStateRef.current
+      const panelHeight = secondaryBottomSheetPanelRef.current?.offsetHeight ?? 0
+      if (!dragState || panelHeight <= 0) return
+
+      const highTranslate = panelHeight * BOTTOM_SHEET_SNAP_TRANSLATES.high
+      const closedTranslate = panelHeight * BOTTOM_SHEET_SNAP_TRANSLATES.closed
+      const nextTranslate = dragState.startTranslateY + (event.clientY - dragState.startY)
+      const clampedTranslate = Math.min(closedTranslate, Math.max(highTranslate, nextTranslate))
+      setSecondaryBottomSheetDragTranslate(clampedTranslate)
+    }
+
+    const finishDrag = () => {
+      const panelHeight = secondaryBottomSheetPanelRef.current?.offsetHeight ?? 0
+      const currentTranslate = secondaryBottomSheetDragTranslate ?? (panelHeight * BOTTOM_SHEET_SNAP_TRANSLATES[secondaryBottomSheetSnap])
+      const nextSnap = resolveNearestSecondaryBottomSheetSnap(currentTranslate)
+      setSecondaryBottomSheetSnap(nextSnap)
+      setSecondaryBottomSheetDragTranslate(null)
+      setIsSecondaryBottomSheetDragging(false)
+      secondaryBottomSheetDragStateRef.current = null
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+
+    document.addEventListener('pointermove', handlePointerMove)
+    document.addEventListener('pointerup', finishDrag)
+    document.addEventListener('pointercancel', finishDrag)
+
+    return () => {
+      document.removeEventListener('pointermove', handlePointerMove)
+      document.removeEventListener('pointerup', finishDrag)
+      document.removeEventListener('pointercancel', finishDrag)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+  }, [isSecondaryBottomSheetDragging, resolveNearestSecondaryBottomSheetSnap, secondaryBottomSheetDragTranslate, secondaryBottomSheetSnap])
+
   const handleBottomSheetDragPointerDown = useCallback((event: React.PointerEvent<HTMLElement>) => {
     if (event.button !== 0) return
     event.preventDefault()
     startBottomSheetDrag(event.clientY)
   }, [startBottomSheetDrag])
+
+  const handleSecondaryBottomSheetDragPointerDown = useCallback((event: React.PointerEvent<HTMLElement>) => {
+    if (event.button !== 0) return
+    event.preventDefault()
+    startSecondaryBottomSheetDrag(event.clientY)
+  }, [startSecondaryBottomSheetDrag])
 
   const bottomSheetTransformStyle = useMemo(() => {
     const translateY = bottomSheetDragTranslate ?? getSnapTranslatePx(bottomSheetSnap)
@@ -591,16 +681,24 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
     }
   }, [bottomSheetDragTranslate, bottomSheetSnap, getSnapTranslatePx])
 
+  const secondaryBottomSheetTransformStyle = useMemo(() => {
+    const translateY = secondaryBottomSheetDragTranslate ?? getSecondarySnapTranslatePx(secondaryBottomSheetSnap)
+    return {
+      transform: `translateY(${translateY}px)`,
+    }
+  }, [getSecondarySnapTranslatePx, secondaryBottomSheetDragTranslate, secondaryBottomSheetSnap])
+
   useEffect(() => {
-    if (isBottomSheetDragging) return
+    if (isBottomSheetDragging || isSecondaryBottomSheetDragging) return
 
     const handleResize = () => {
       setBottomSheetDragTranslate(null)
+      setSecondaryBottomSheetDragTranslate(null)
     }
 
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
-  }, [])
+  }, [isBottomSheetDragging, isSecondaryBottomSheetDragging])
 
   if (loading) {
     return <div className="flex h-full items-center justify-center bg-white text-sm text-gray-400">加载中...</div>
@@ -730,7 +828,7 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
 
       <div
         className={`pointer-events-none absolute inset-0 z-20 transition-opacity duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-          bottomSheetSnap === 'high' ? 'bg-white/10 opacity-100' : 'bg-transparent opacity-0'
+          bottomSheetSnap === 'high' || secondaryBottomSheetSnap === 'high' ? 'bg-white/10 opacity-100' : 'bg-transparent opacity-0'
         }`}
       />
 
@@ -758,6 +856,7 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
 
         <div
           className={`group absolute left-1/2 top-0 flex h-[38px] w-[196px] -translate-x-1/2 -translate-y-full items-center justify-center rounded-t-[24px] transition-colors ${activeBottomSheetTheme.handleClassName}`}
+          style={{ left: PRIMARY_HANDLE_LEFT }}
         >
           <button
             type="button"
@@ -853,6 +952,63 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
                 onChange={handleBottomSheetNoteChange}
               />
             </BottomSheetLane>
+          </div>
+        </div>
+      </div>
+
+      <div
+        ref={secondaryBottomSheetPanelRef}
+        className={`absolute inset-x-0 bottom-0 z-40 flex h-[88%] min-h-[320px] transform-gpu flex-col border-t border-black/[0.04] bg-[linear-gradient(180deg,rgba(255,255,255,0.985),rgba(251,252,253,0.995))] shadow-[0_-6px_18px_rgba(15,23,42,0.06),0_-1px_0_rgba(255,255,255,0.78)] will-change-transform ${
+          isSecondaryBottomSheetDragging
+            ? 'transition-none'
+            : 'transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]'
+        }`}
+        style={secondaryBottomSheetTransformStyle}
+      >
+        <div
+          role="separator"
+          aria-orientation="horizontal"
+          onPointerDown={handleSecondaryBottomSheetDragPointerDown}
+          className="absolute inset-x-0 top-0 z-10 h-4 -translate-y-1/2 cursor-row-resize"
+        />
+
+        <div
+          className="group absolute top-0 flex h-[38px] w-[196px] -translate-x-1/2 -translate-y-full items-center justify-center rounded-t-[24px] border border-b-0 border-black/[0.05] bg-[linear-gradient(180deg,rgba(248,250,252,1),rgba(242,245,248,0.98))] text-[#7a808b] shadow-[0_-2px_8px_rgba(15,23,42,0.035)] transition-colors hover:bg-[linear-gradient(180deg,rgba(246,248,251,1),rgba(238,242,246,1))]"
+          style={{ left: SECONDARY_HANDLE_LEFT }}
+        >
+          <button
+            type="button"
+            onClick={toggleSecondaryBottomSheet}
+            aria-label={secondaryBottomSheetSnap === 'closed' ? '展开白板半页面' : '收起白板半页面'}
+            className="flex h-full flex-1 items-center justify-center opacity-95 transition-opacity hover:opacity-100"
+          >
+            <span className="h-1.5 w-12 rounded-full bg-[#c5ccd6]" />
+          </button>
+        </div>
+
+        <div className="min-h-0 flex-1 px-6 pb-8 pt-6">
+          <div className="h-full overflow-hidden rounded-[28px] border border-black/[0.06] bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_18px_42px_rgba(15,23,42,0.04)]">
+            <MainBoard
+              tasks={tasks}
+              selectedDate={selectedDate}
+              onDateChange={onDateChange}
+              onCreateTask={onCreateTask}
+              onToggleTask={onToggleTask}
+              onDeleteTask={onDeleteTask}
+              onUpdateTaskContent={onUpdateTaskContent}
+              onMoveTaskToToday={undefined}
+              onSetActiveObjective={undefined}
+              highlightedTaskId={null}
+              highlightedSourceItemIds={[]}
+              isPastDate={false}
+              onReorderTasks={undefined}
+              onExecutionItemsChanged={onObjectiveChanged}
+              onSelectionTitleChange={undefined}
+              okrRefreshTrigger={refreshTrigger}
+              dndScope="objective-board-sheet"
+              dropZoneId="objective-board-sheet-main-drop-zone"
+              className="bg-transparent"
+            />
           </div>
         </div>
       </div>

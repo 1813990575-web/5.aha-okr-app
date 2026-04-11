@@ -40,7 +40,7 @@ export const useDragContext = () => {
 
 interface DragProviderProps {
   children: React.ReactNode
-  onDragEnd?: (item: DragItem) => void
+  onDragEnd?: (item: DragItem, dropZoneId?: string | null) => void
 }
 
 export const DragProvider: React.FC<DragProviderProps> = ({ children, onDragEnd }) => {
@@ -102,9 +102,10 @@ export const DragProvider: React.FC<DragProviderProps> = ({ children, onDragEnd 
       : null
     setActiveItem(null)
 
+    const overId = over?.id ? String(over.id) : null
     const droppedIntoMainBoard =
       !!over && (
-        over.id === 'main-board-drop-zone' ||
+        overId?.includes('main-board-drop-zone') ||
         overData?.dragKind === 'mainboard-sort'
       )
 
@@ -113,7 +114,7 @@ export const DragProvider: React.FC<DragProviderProps> = ({ children, onDragEnd 
       onDragEnd?.({
         ...item,
         dragKind: undefined,
-      })
+      }, overId)
     }
   }, [onDragEnd])
 

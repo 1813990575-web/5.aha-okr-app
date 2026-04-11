@@ -28,6 +28,9 @@ interface MainBoardProps {
   onExecutionItemsChanged?: () => void | Promise<void>
   onSelectionTitleChange?: (selection: { id: string; title: string } | null) => void
   okrRefreshTrigger?: number
+  dndScope?: string
+  dropZoneId?: string
+  className?: string
 }
 
 export const MainBoard: React.FC<MainBoardProps> = ({
@@ -47,6 +50,9 @@ export const MainBoard: React.FC<MainBoardProps> = ({
   onExecutionItemsChanged,
   onSelectionTitleChange,
   okrRefreshTrigger,
+  dndScope = 'main',
+  dropZoneId = 'main-board-drop-zone',
+  className = '',
 }) => {
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false)
   const [items, setItems] = useState<Item[]>([])
@@ -61,6 +67,10 @@ export const MainBoard: React.FC<MainBoardProps> = ({
   const [collapsedExecutionKrIds, setCollapsedExecutionKrIds] = useState<Set<string>>(new Set())
   const [isScrolling, setIsScrolling] = useState(false)
   const scrollTimerRef = useRef<number | null>(null)
+  const getTaskSortableId = useCallback((taskId: string) => `${dndScope}-task:${taskId}`, [dndScope])
+  const parseScopedId = useCallback((scopedId: string, prefix: string) => {
+    return scopedId.startsWith(prefix) ? scopedId.slice(prefix.length) : null
+  }, [])
 
   // 加载 OKR 数据（用于显示关联项标题）
   const loadItems = useCallback(async () => {
@@ -303,16 +313,21 @@ export const MainBoard: React.FC<MainBoardProps> = ({
   useDndMonitor({
     onDragStart: (event) => {
       const activeData = event.active.data.current as { dragKind?: string } | undefined
-      if (activeData?.dragKind === 'mainboard-sort') {
+      if (activeData?.dragKind === 'mainboard-sort' && String(event.active.id).startsWith(`${dndScope}-task:`)) {
         setActiveSortTaskId(String(event.active.id))
-      } else if (activeData?.dragKind === 'execution-child-sort') {
+      } else if (activeData?.dragKind === 'execution-child-sort' && String(event.active.id).startsWith(`${dndScope}-execution:`)) {
         setActiveChildSortId(String(event.active.id))
       }
     },
     onDragOver: (event) => {
       const activeData = event.active.data.current as { dragKind?: string } | undefined
       const overData = event.over?.data.current as { dragKind?: string } | undefined
-      if (activeData?.dragKind === 'mainboard-sort' && overData?.dragKind === 'mainboard-sort') {
+      if (
+        activeData?.dragKind === 'mainboard-sort' &&
+        overData?.dragKind === 'mainboard-sort' &&
+        String(event.active.id).startsWith(`${dndScope}-task:`) &&
+        String(event.over?.id).startsWith(`${dndScope}-task:`)
+      ) {
         setOverSortTaskId(String(event.over?.id))
       } else {
         setOverSortTaskId(null)
@@ -328,7 +343,14 @@ export const MainBoard: React.FC<MainBoardProps> = ({
       setOverSortTaskId(null)
       setActiveChildSortId(null)
 
-      if (activeData?.dragKind === 'execution-child-sort' && overData?.dragKind === 'execution-child-sort' && overId && activeId !== overId) {
+      if (
+        activeData?.dragKind === 'execution-child-sort' &&
+        overData?.dragKind === 'execution-child-sort' &&
+        overId &&
+        activeId !== overId &&
+        activeId.startsWith(`${dndScope}-execution:`) &&
+        overId.startsWith(`${dndScope}-execution:`)
+      ) {
         const activeItemId = String((event.active.data.current as { itemId?: string }).itemId || '')
         const overItemId = String((event.over?.data.current as { itemId?: string }).itemId || '')
         const parentId = (event.active.data.current as { parentId?: string | null }).parentId
@@ -346,7 +368,7 @@ export const MainBoard: React.FC<MainBoardProps> = ({
         return
       }
 
-      const currentIds = tasks.map((task) => task.id)
+      const currentIds = tasks.map((task) => getTaskSortableId(task.id))
       const oldIndex = currentIds.indexOf(activeId)
       const newIndex = currentIds.indexOf(overId)
       if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return
@@ -354,7 +376,11 @@ export const MainBoard: React.FC<MainBoardProps> = ({
       const nextIds = [...currentIds]
       const [moved] = nextIds.splice(oldIndex, 1)
       nextIds.splice(newIndex, 0, moved)
-      void onReorderTasks?.(nextIds)
+      void onReorderTasks?.(
+        nextIds
+          .map((id) => parseScopedId(id, `${dndScope}-task:`))
+          .filter(Boolean) as string[]
+      )
     },
     onDragCancel: () => {
       setActiveSortTaskId(null)
@@ -364,7 +390,7 @@ export const MainBoard: React.FC<MainBoardProps> = ({
   })
 
   return (
-    <DroppableMainBoard>
+    <DroppableMainBoard dropZoneId={dropZoneId} className={className}>
       {/* 日历 Header */}
       <CalendarHeader
         selectedDate={selectedDate}
@@ -447,12 +473,13 @@ export const MainBoard: React.FC<MainBoardProps> = ({
                     highlightedSourceItemIds={highlightedSourceItemIds}
                     isSelected={selectedTaskId === task.id}
                     isPastDate={isPastDate}
-                    isSorting={activeSortTaskId === task.id}
-                    showSortInsertion={overSortTaskId === task.id && activeSortTaskId !== task.id}
+                    isSorting={activeSortTaskId === getTaskSortableId(task.id)}
+                    showSortInsertion={overSortTaskId === getTaskSortableId(task.id) && activeSortTaskId !== getTaskSortableId(task.id)}
                     activeChildSortId={activeChildSortId}
                     laneMode={laneMode}
                     collapsedExecutionKrIds={collapsedExecutionKrIds}
                     onToggleExecutionKrCollapsed={toggleExecutionKrCollapsed}
+                    dndScope={dndScope}
                   />
                 )
               }
@@ -463,10 +490,10 @@ export const MainBoard: React.FC<MainBoardProps> = ({
                     <div className="pb-2 pt-1">
                       <TaskInput onSubmit={handleCreateTask} disabled={isLoading} />
                     </div>
-                    <SortableContext items={tasks.map((task) => task.id)} strategy={verticalListSortingStrategy}>
+                    <SortableContext items={tasks.map((task) => getTaskSortableId(task.id))} strategy={verticalListSortingStrategy}>
                       <div className="space-y-1">
                         {tasks.map((task) => (
-                        <SortableTaskRow key={task.id} taskId={task.id} title={task.content}>
+                        <SortableTaskRow key={task.id} sortableId={getTaskSortableId(task.id)} taskId={task.id} title={task.content}>
                           {renderExecutionTask(task, false)}
                         </SortableTaskRow>
                       ))}
@@ -511,6 +538,7 @@ const ExecutionEntry: React.FC<{
   laneMode?: boolean
   collapsedExecutionKrIds: Set<string>
   onToggleExecutionKrCollapsed: (itemId: string) => void
+  dndScope?: string
 }> = ({
   task,
   linkedItemTitle,
@@ -537,6 +565,7 @@ const ExecutionEntry: React.FC<{
   laneMode = false,
   collapsedExecutionKrIds,
   onToggleExecutionKrCollapsed,
+  dndScope = 'main',
 }) => {
   const entryType = task.entryType ?? 'manual'
   const isManual = entryType === 'manual'
@@ -564,6 +593,7 @@ const ExecutionEntry: React.FC<{
         showSortInsertion={showSortInsertion}
         activeChildSortId={activeChildSortId}
         laneMode={laneMode}
+        dndScope={dndScope}
       />
     )
   }
@@ -590,6 +620,7 @@ const ExecutionEntry: React.FC<{
         isSelected={isSelected}
         isCollapsed={collapsedExecutionKrIds.has(sourceItem.id)}
         onToggleCollapsed={() => onToggleExecutionKrCollapsed(sourceItem.id)}
+        dndScope={dndScope}
       />
     )
   }
@@ -633,6 +664,7 @@ const ObjectiveExecutionSection: React.FC<{
   showSortInsertion?: boolean
   activeChildSortId?: string | null
   laneMode?: boolean
+  dndScope?: string
 }> = ({
   task,
   sourceItem,
@@ -653,6 +685,7 @@ const ObjectiveExecutionSection: React.FC<{
   showSortInsertion,
   activeChildSortId,
   laneMode = false,
+  dndScope = 'main',
 }) => {
   void onCreateExecutionChild
   void onDeleteTask
@@ -688,13 +721,14 @@ const ObjectiveExecutionSection: React.FC<{
           </div>
         </div>
 
-        <SortableContext items={krItems.map((kr) => `execution-child:${kr.id}`)} strategy={verticalListSortingStrategy}>
+        <SortableContext items={krItems.map((kr) => `${dndScope}-execution:${kr.id}`)} strategy={verticalListSortingStrategy}>
           <div className="space-y-1 pl-6">
             {krItems.map((kr) => (
               <SortableExecutionColumn
                 key={kr.id}
                 item={kr}
                 parentId={sourceItem.id}
+                dndScope={dndScope}
                 className="w-full"
               >
                 <KRExecutionColumn
@@ -772,6 +806,7 @@ const KRExecutionColumn: React.FC<{
   isSelected?: boolean
   isCollapsed?: boolean
   onToggleCollapsed?: () => void
+  dndScope?: string
 }> = ({
   task,
   item,
@@ -794,6 +829,7 @@ const KRExecutionColumn: React.FC<{
   isSelected = false,
   isCollapsed = false,
   onToggleCollapsed,
+  dndScope = 'main',
 }) => {
   void onCreateExecutionChild
   void onDeleteTask
@@ -884,16 +920,17 @@ const KRExecutionColumn: React.FC<{
 
       {!isCollapsed && (
         <div className="space-y-2 pl-[58px]">
-          <SortableContext items={todoItems.map((todo) => `execution-child:${todo.id}`)} strategy={verticalListSortingStrategy}>
+          <SortableContext items={todoItems.map((todo) => `${dndScope}-execution:${todo.id}`)} strategy={verticalListSortingStrategy}>
             {todoItems.map((todo) => (
               <SortableExecutionRow
                 key={todo.id}
                 item={todo}
                 parentId={item.id}
+                dndScope={dndScope}
                 color={task.color}
                 isEditing={editingSourceItemId === todo.id}
                 isHighlighted={highlightedSourceItemIds.includes(todo.id)}
-                isSorting={activeChildSortId === `execution-child:${todo.id}`}
+                isSorting={activeChildSortId === `${dndScope}-execution:${todo.id}`}
                 onStartEdit={() => setEditingSourceItemId(todo.id)}
                 onSave={onUpdateExecutionItemTitle}
                 onDelete={onDeleteExecutionItem}
@@ -1118,6 +1155,7 @@ const EditableExecutionRow: React.FC<{
   onSave: (itemId: string, title: string) => Promise<void>
   onDelete: (itemId: string) => Promise<void>
   onToggle: (item: Item) => Promise<void>
+  dndScope?: string
 }> = ({
   item,
   color,
@@ -1130,7 +1168,9 @@ const EditableExecutionRow: React.FC<{
   onSave,
   onDelete,
   onToggle,
+  dndScope,
 }) => {
+  void dndScope
   const { open, position, handleContextMenu, closeMenu } = useExecutionContextMenu()
   const [value, setValue] = useState(item.title)
   const inputRef = React.useRef<HTMLInputElement>(null)
@@ -1244,7 +1284,8 @@ const EditableExecutionRow: React.FC<{
 }
 
 const SortableExecutionRow: React.FC<React.ComponentProps<typeof EditableExecutionRow>> = (props) => {
-  const sortableId = `execution-child:${props.item.id}`
+  const dndScope = (props as React.ComponentProps<typeof EditableExecutionRow> & { dndScope?: string }).dndScope ?? 'main'
+  const sortableId = `${dndScope}-execution:${props.item.id}`
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: sortableId,
     data: {
@@ -1279,8 +1320,9 @@ const SortableExecutionColumn: React.FC<{
   parentId?: string | null
   className?: string
   children: React.ReactNode
-}> = ({ item, parentId, className, children }) => {
-  const sortableId = `execution-child:${item.id}`
+  dndScope?: string
+}> = ({ item, parentId, className, children, dndScope = 'main' }) => {
+  const sortableId = `${dndScope}-execution:${item.id}`
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: sortableId,
     data: {
@@ -1311,9 +1353,9 @@ const SortableExecutionColumn: React.FC<{
   )
 }
 
-const SortableTaskRow: React.FC<{ taskId: string; title: string; children: React.ReactNode }> = ({ taskId, title, children }) => {
+const SortableTaskRow: React.FC<{ sortableId: string; taskId: string; title: string; children: React.ReactNode }> = ({ sortableId, taskId, title, children }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: taskId,
+    id: sortableId,
     data: { dragKind: 'mainboard-sort', title, type: 'TODO' },
   })
 
