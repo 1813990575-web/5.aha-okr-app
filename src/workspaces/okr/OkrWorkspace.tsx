@@ -45,6 +45,7 @@ interface OkrWorkspaceProps {
   onExecutionItemsChanged: () => void | Promise<void>
   onUpdateTaskNote: (id: string, note: string) => void | Promise<void>
   isPastDate: boolean
+  dragNotice?: string | null
 }
 
 export const OkrWorkspace: React.FC<OkrWorkspaceProps> = ({
@@ -75,6 +76,7 @@ export const OkrWorkspace: React.FC<OkrWorkspaceProps> = ({
   onExecutionItemsChanged,
   onUpdateTaskNote,
   isPastDate,
+  dragNotice,
 }) => {
   const [selectedTaskNoteTarget, setSelectedTaskNoteTarget] = useState<{ id: string; title: string } | null>(null)
   const selectedTask = tasks.find((task) => task.id === selectedTaskNoteTarget?.id) ?? null
@@ -136,9 +138,13 @@ export const OkrWorkspace: React.FC<OkrWorkspaceProps> = ({
                     onToggleTask={onToggleTask}
                     onDeleteTask={onDeleteTask}
                     onUpdateTaskContent={onUpdateTaskContent}
+                      onMoveTaskToToday={onMoveTaskToToday}
+                      onReorderTasks={onReorderTasks}
+                      isPastDate={isPastDate}
                       onUpdateTaskNote={onUpdateTaskNote}
                       onObjectiveChanged={onExecutionItemsChanged}
                       refreshTrigger={sidebarRefreshTrigger}
+                      dragNotice={dragNotice}
                     />
                   </div>
                 ) : (

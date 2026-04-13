@@ -5,6 +5,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { CalendarHeader } from './daily/CalendarHeader'
 import { DatePicker } from './daily/DatePicker'
 import { TaskInput } from './daily/TaskInput'
+import { TaskChatComposer } from './daily/TaskChatComposer'
 import { TaskItem } from './daily/TaskItem'
 import { DroppableMainBoard } from './dnd/DroppableMainBoard'
 import { COLOR_OPTIONS } from './Sidebar'
@@ -31,6 +32,8 @@ interface MainBoardProps {
   dndScope?: string
   dropZoneId?: string
   className?: string
+  taskComposerMode?: 'inline' | 'chat-bottom'
+  enableHeaderDragRegion?: boolean
 }
 
 export const MainBoard: React.FC<MainBoardProps> = ({
@@ -53,6 +56,8 @@ export const MainBoard: React.FC<MainBoardProps> = ({
   dndScope = 'main',
   dropZoneId = 'main-board-drop-zone',
   className = '',
+  taskComposerMode = 'inline',
+  enableHeaderDragRegion = true,
 }) => {
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false)
   const [items, setItems] = useState<Item[]>([])
@@ -67,6 +72,7 @@ export const MainBoard: React.FC<MainBoardProps> = ({
   const [collapsedExecutionKrIds, setCollapsedExecutionKrIds] = useState<Set<string>>(new Set())
   const [isScrolling, setIsScrolling] = useState(false)
   const scrollTimerRef = useRef<number | null>(null)
+  const useChatBottomComposer = taskComposerMode === 'chat-bottom'
   const getTaskSortableId = useCallback((taskId: string) => `${dndScope}-task:${taskId}`, [dndScope])
   const parseScopedId = useCallback((scopedId: string, prefix: string) => {
     return scopedId.startsWith(prefix) ? scopedId.slice(prefix.length) : null
@@ -397,6 +403,7 @@ export const MainBoard: React.FC<MainBoardProps> = ({
         onDateChange={onDateChange}
         onOpenDatePicker={() => setIsDatePickerOpen(true)}
         datesWithTasks={datesWithTasks}
+        enableWindowDragRegion={enableHeaderDragRegion}
       />
 
       {/* 日期选择器 */}
@@ -433,7 +440,7 @@ export const MainBoard: React.FC<MainBoardProps> = ({
             加载中...
           </div>
         ) : (
-          <div className="px-6 pb-10 pt-6">
+          <div className={`px-6 pt-6 ${useChatBottomComposer ? 'pb-20' : 'pb-10'}`}>
             {(() => {
               const renderExecutionTask = (task: DailyTask, laneMode: boolean) => {
                 const sourceItemId = task.sourceItemId ?? task.linkedGoalId
@@ -487,9 +494,11 @@ export const MainBoard: React.FC<MainBoardProps> = ({
               return (
                 <>
                   <div>
-                    <div className="pb-2 pt-1">
-                      <TaskInput onSubmit={handleCreateTask} disabled={isLoading} />
-                    </div>
+                    {!useChatBottomComposer ? (
+                      <div className="pb-2 pt-1">
+                        <TaskInput onSubmit={handleCreateTask} disabled={isLoading} />
+                      </div>
+                    ) : null}
                     <SortableContext items={tasks.map((task) => getTaskSortableId(task.id))} strategy={verticalListSortingStrategy}>
                       <div className="space-y-1">
                         {tasks.map((task) => (
@@ -506,6 +515,12 @@ export const MainBoard: React.FC<MainBoardProps> = ({
           </div>
         )}
       </div>
+
+      {useChatBottomComposer ? (
+        <div className="border-t border-black/[0.06] bg-white px-4 py-3">
+          <TaskChatComposer onSubmit={handleCreateTask} disabled={isLoading} />
+        </div>
+      ) : null}
     </DroppableMainBoard>
   )
 }

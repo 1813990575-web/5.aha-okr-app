@@ -474,6 +474,7 @@ function App() {
                   onExecutionItemsChanged={handleExecutionItemsChanged}
                   onUpdateTaskNote={handleUpdateTaskNote}
                   isPastDate={isPastDate()}
+                  dragNotice={dragNotice}
                 />
               )}
             </div>
@@ -508,7 +509,7 @@ function App() {
           )}
         </div>
       </DragProvider>
-      {dragNotice && (
+      {dragNotice && okrViewMode !== 'objective-board' && (
         <div className="pointer-events-none fixed bottom-6 left-1/2 z-[120] -translate-x-1/2">
           <div className="rounded-full border border-black/8 bg-white/92 px-4 py-2 text-[13px] font-medium text-[#4c5461] shadow-[0_12px_28px_rgba(15,23,42,0.12)] backdrop-blur-xl">
             {dragNotice}

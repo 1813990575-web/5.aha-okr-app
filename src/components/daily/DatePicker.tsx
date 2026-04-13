@@ -33,7 +33,7 @@ function getFirstDayOfMonth(year: number, month: number): number {
   return new Date(year, month, 1).getDay()
 }
 
-const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
+const WEEKDAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'
@@ -59,6 +59,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({
   const month = viewDate.getMonth()
   const daysInMonth = getDaysInMonth(year, month)
   const firstDay = getFirstDayOfMonth(year, month)
+  const firstDayMondayBased = (firstDay + 6) % 7
 
   const today = new Date()
   const todayKey = formatDateKey(today)
@@ -82,7 +83,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({
   const days: Array<{ day: number | null; isToday: boolean; isSelected: boolean; hasContent: boolean }> = []
 
   // 空白格子（上月）
-  for (let i = 0; i < firstDay; i++) {
+  for (let i = 0; i < firstDayMondayBased; i++) {
     days.push({ day: null, isToday: false, isSelected: false, hasContent: false })
   }
 
@@ -101,6 +102,17 @@ export const DatePicker: React.FC<DatePickerProps> = ({
     })
   }
 
+  // 末尾补齐空格，保证按整周显示（便于显示周数）
+  const totalCells = Math.ceil(days.length / 7) * 7
+  while (days.length < totalCells) {
+    days.push({ day: null, isToday: false, isSelected: false, hasContent: false })
+  }
+
+  const weekRows = Array.from({ length: totalCells / 7 }, (_, rowIndex) => ({
+    weekNumber: rowIndex + 1,
+    cells: days.slice(rowIndex * 7, rowIndex * 7 + 7),
+  }))
+
   return (
     <>
       {/* 遮罩层 */}
@@ -110,7 +122,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({
       />
 
       {/* 日历弹窗 */}
-      <div className="absolute top-14 left-4 z-50 bg-white rounded-xl shadow-2xl border border-gray-100 p-4 w-[280px]">
+      <div className="absolute top-14 left-4 z-50 bg-white rounded-xl shadow-2xl border border-gray-100 p-4 w-[336px]">
         {/* 头部：月份导航 */}
         <div className="flex items-center justify-between mb-4">
           <button
@@ -133,7 +145,8 @@ export const DatePicker: React.FC<DatePickerProps> = ({
         </div>
 
         {/* 星期标题 */}
-        <div className="grid grid-cols-7 mb-2">
+        <div className="grid grid-cols-[52px_repeat(7,minmax(0,1fr))] mb-2">
+          <div className="text-center text-[11px] font-medium text-gray-300 py-1">周数</div>
           {WEEKDAYS.map((weekday) => (
             <div
               key={weekday}
@@ -145,40 +158,47 @@ export const DatePicker: React.FC<DatePickerProps> = ({
         </div>
 
         {/* 日期格子 */}
-        <div className="grid grid-cols-7 gap-1">
-          {days.map((item, index) => (
-            <div key={index} className="aspect-square">
-              {item.day !== null && (
-                <button
-                  onClick={() => handleSelectDay(item.day as number)}
-                  className={`
-                    w-full h-full flex flex-col items-center justify-center rounded-lg text-[13px] font-medium
-                    transition-all duration-150
-                    ${item.isSelected
-                      ? 'bg-gray-900 text-white'
-                      : 'hover:bg-gray-50'
-                    }
-                  `}
-                >
-                  {/* 日期数字：今天显示红色 */}
-                  <span className={`
-                    ${item.isSelected
-                      ? 'text-white'
-                      : item.isToday
-                        ? 'text-red-500'
-                        : 'text-gray-700'
-                    }
-                  `}>
-                    {item.day}
-                  </span>
-                  {/* 内容指示点：恒定占位，通过透明度控制显隐 */}
-                  <span
-                    className={`w-1 h-1 rounded-full flex-shrink-0 mt-0.5 transition-opacity duration-200 ${
-                      item.hasContent ? 'bg-gray-400 opacity-100' : 'bg-transparent opacity-0'
-                    }`}
-                  />
-                </button>
-              )}
+        <div className="space-y-1">
+          {weekRows.map((row, rowIndex) => (
+            <div key={`week-row-${rowIndex}`} className="grid grid-cols-[52px_repeat(7,minmax(0,1fr))] gap-1">
+              <div className="flex items-center justify-center text-[11px] font-medium text-gray-400">
+                第{row.weekNumber}周
+              </div>
+              {row.cells.map((item, cellIndex) => (
+                <div key={`week-${rowIndex}-cell-${cellIndex}`} className="aspect-square">
+                  {item.day !== null && (
+                    <button
+                      onClick={() => handleSelectDay(item.day as number)}
+                      className={`
+                        w-full h-full flex flex-col items-center justify-center rounded-lg text-[13px] font-medium
+                        transition-all duration-150
+                        ${item.isSelected
+                          ? 'bg-gray-900 text-white'
+                          : 'hover:bg-gray-50'
+                        }
+                      `}
+                    >
+                      {/* 日期数字：今天显示红色 */}
+                      <span className={`
+                        ${item.isSelected
+                          ? 'text-white'
+                          : item.isToday
+                            ? 'text-red-500'
+                            : 'text-gray-700'
+                        }
+                      `}>
+                        {item.day}
+                      </span>
+                      {/* 内容指示点：恒定占位，通过透明度控制显隐 */}
+                      <span
+                        className={`w-1 h-1 rounded-full flex-shrink-0 mt-0.5 transition-opacity duration-200 ${
+                          item.hasContent ? 'bg-gray-400 opacity-100' : 'bg-transparent opacity-0'
+                        }`}
+                      />
+                    </button>
+                  )}
+                </div>
+              ))}
             </div>
           ))}
         </div>

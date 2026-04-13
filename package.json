@@ -9,7 +9,8 @@
     "electron:dev": "vite",
     "electron:build": "npm run build && electron-builder",
     "preview": "vite preview",
-    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "design:audit": "node design-audit/generate.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

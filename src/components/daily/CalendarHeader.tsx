@@ -6,6 +6,7 @@ interface CalendarHeaderProps {
   onDateChange: (date: Date) => void
   onOpenDatePicker: () => void
   datesWithTasks?: Set<string> // 所有有任务的日期集合
+  enableWindowDragRegion?: boolean
 }
 
 /**
@@ -101,10 +102,11 @@ function getWeekDays(
   const weekdays = ['日', '一', '二', '三', '四', '五', '六']
   const today = new Date()
 
-  // 计算该周的起始日（周日）
+  // 计算该周的起始日（周一）
   const startOfWeek = new Date(baseWeekDate)
   const dayOfWeek = startOfWeek.getDay()
-  startOfWeek.setDate(startOfWeek.getDate() - dayOfWeek)
+  const mondayOffset = (dayOfWeek + 6) % 7
+  startOfWeek.setDate(startOfWeek.getDate() - mondayOffset)
 
   for (let i = 0; i < 7; i++) {
     const date = new Date(startOfWeek)
@@ -130,6 +132,7 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
   onDateChange,
   onOpenDatePicker,
   datesWithTasks,
+  enableWindowDragRegion = true,
 }) => {
   const [dayProgress, setDayProgress] = useState(getDayProgress(selectedDate))
 
@@ -149,12 +152,6 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
   // 基准周状态：用于控制周历显示
   const [baseWeekDate, setBaseWeekDate] = useState<Date>(new Date())
 
-  const handleToday = () => {
-    const today = new Date()
-    onDateChange(today)
-    setBaseWeekDate(today)
-  }
-
   const handleSelectDate = (date: Date) => {
     onDateChange(date)
   }
@@ -171,13 +168,12 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
     setBaseWeekDate(newDate)
   }
 
-  const isToday = formatDateKey(selectedDate) === formatDateKey(new Date())
   const weekDays = getWeekDays(baseWeekDate, selectedDate, datesWithTasks)
 
   return (
     <div>
       {/* 上边栏：日期标题居中 + 回到今天 - 可拖拽区域 */}
-      <div className="app-drag-region relative flex items-center justify-center px-4 py-3 border-b border-[#eceef2] bg-[#fafbfc]">
+      <div className={`${enableWindowDragRegion ? 'app-drag-region' : 'app-no-drag'} relative flex items-center justify-center px-4 py-3 border-b border-[#eceef2] bg-[#fafbfc]`}>
         {/* 中间：日期 + 日历按钮 */}
         <div className="flex items-center gap-2">
           <span className="text-[16px] font-semibold text-gray-800">
@@ -192,17 +188,6 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
           </button>
         </div>
 
-        {/* 右侧：回到今天 */}
-        <div className="absolute right-4">
-          {!isToday && (
-            <button
-              onClick={handleToday}
-              className="app-no-drag text-[13px] text-gray-500 hover:text-gray-700 transition-colors"
-            >
-              回到今天
-            </button>
-          )}
-        </div>
       </div>
 
       {/* 周历导航 + 进度条 - 共用一个白色底色，增加下方阴影与TODO区分 */}

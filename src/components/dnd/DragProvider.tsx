@@ -106,6 +106,7 @@ export const DragProvider: React.FC<DragProviderProps> = ({ children, onDragEnd 
     const droppedIntoMainBoard =
       !!over && (
         overId?.includes('main-board-drop-zone') ||
+        overId?.includes('floating-cart-drop-zone') ||
         overData?.dragKind === 'mainboard-sort'
       )
 
