@@ -83,7 +83,6 @@ export const DragProvider: React.FC<DragProviderProps> = ({ children, onDragEnd 
   }, [])
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
-    console.log('[DragProvider] DragEnd:', event.active.id, 'over:', event.over?.id)
     const { active, over } = event
     const overData = over?.data.current as { dragKind?: string } | undefined
     const rawItem = active.data.current as Partial<DragItem> | undefined
@@ -111,7 +110,6 @@ export const DragProvider: React.FC<DragProviderProps> = ({ children, onDragEnd 
       )
 
     if (droppedIntoMainBoard && item && item.dragKind !== 'mainboard-sort' && item.dragKind !== 'execution-child-sort') {
-      console.log('[DragProvider] 拖入 MainBoard:', item)
       onDragEnd?.({
         ...item,
         dragKind: undefined,

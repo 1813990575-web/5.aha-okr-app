@@ -1,5 +1,5 @@
 {
-  "version": "1.0.8",
+  "version": "1.0.9",
   "downloadUrl": "https://github.com/1813990575-web/5.aha-okr-app/releases/latest",
-  "releaseNotes": "v1.0.8 更新内容：\n- 继续完善 OKR 分栏模式的顶部入口、图标与布局细节\n- 打通左侧目录、分栏视图与执行区之间的关键同步逻辑\n- 优化分栏工作流与拖拽联动体验"
+  "releaseNotes": "v1.0.9 更新内容：\n- 新增今日待办的专注面板、迷你计时器与笔记区工作流\n- 优化今日浮窗、备注浮窗与专注态的视觉细节与交互反馈\n- 保留 GitHub 版本检查入口，后续新版本可直接提示下载最新版安装包"
 }

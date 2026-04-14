@@ -8,10 +8,19 @@ import { DatePicker } from './daily/DatePicker'
 import { TaskInput } from './daily/TaskInput'
 import { TaskChatComposer } from './daily/TaskChatComposer'
 import { TaskItem } from './daily/TaskItem'
+import { TaskFocusPanel } from './daily/TaskFocusPanel'
 import { DroppableMainBoard } from './dnd/DroppableMainBoard'
 import { getObjectiveColorOption } from './Sidebar'
 import { Check, ChevronDown, Triangle } from 'lucide-react'
 import type { DailyTask, Item } from '../store/index'
+import {
+  formatFocusDuration,
+  getFocusElapsedMs,
+  readFocusSessions,
+  subscribeFocusSessions,
+  writeFocusSessions,
+  type FocusSessionRecord,
+} from './daily/focusSessionStore'
 
 interface MainBoardProps {
   tasks: DailyTask[]
@@ -69,6 +78,7 @@ export const MainBoard: React.FC<MainBoardProps> = ({
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+  const [selectedExecutionItemId, setSelectedExecutionItemId] = useState<string | null>(null)
   const [datesWithTasks, setDatesWithTasks] = useState<Set<string>>(new Set())
   const [activeSortTaskId, setActiveSortTaskId] = useState<string | null>(null)
   const [overSortTaskId, setOverSortTaskId] = useState<string | null>(null)
@@ -76,6 +86,8 @@ export const MainBoard: React.FC<MainBoardProps> = ({
   const [editingSourceItemId, setEditingSourceItemId] = useState<string | null>(null)
   const [collapsedExecutionKrIds, setCollapsedExecutionKrIds] = useState<Set<string>>(new Set())
   const [isScrolling, setIsScrolling] = useState(false)
+  const [focusSessions, setFocusSessions] = useState<Record<string, FocusSessionRecord>>(() => readFocusSessions())
+  const [focusNow, setFocusNow] = useState(() => Date.now())
   const scrollTimerRef = useRef<number | null>(null)
   const useChatBottomComposer = taskComposerMode === 'chat-bottom'
   const getTaskSortableId = useCallback((taskId: string) => `${dndScope}-task:${taskId}`, [dndScope])
@@ -121,10 +133,44 @@ export const MainBoard: React.FC<MainBoardProps> = ({
     void loadItems()
   }, [okrRefreshTrigger, loadItems])
 
+  useEffect(() => subscribeFocusSessions(() => setFocusSessions(readFocusSessions())), [])
+
+  useEffect(() => {
+    const hasRunningSession = Object.values(focusSessions).some((session) => session.isRunning)
+    if (!hasRunningSession) return
+
+    const timer = window.setInterval(() => setFocusNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [focusSessions])
+
   // 当任务变化时刷新日期集合
   useEffect(() => {
     loadAllTaskDates()
   }, [tasks, loadAllTaskDates])
+
+  useEffect(() => {
+    setFocusSessions((current) => {
+      let hasChanged = false
+      const nextSessions = { ...current }
+
+      tasks.forEach((task) => {
+        const currentSession = nextSessions[task.id]
+        if (!currentSession) return
+        if (currentSession.title === task.content) return
+
+        nextSessions[task.id] = {
+          ...currentSession,
+          title: task.content,
+          updatedAt: Date.now(),
+        }
+        hasChanged = true
+      })
+
+      if (!hasChanged) return current
+      writeFocusSessions(nextSessions)
+      return nextSessions
+    })
+  }, [tasks])
 
   // 处理创建待办
   const handleCreateTask = async (content: string) => {
@@ -155,12 +201,86 @@ export const MainBoard: React.FC<MainBoardProps> = ({
     try {
       setErrorMessage(null)
       await onDeleteTask(id)
+      setFocusSessions((current) => {
+        if (!current[id]) return current
+        const nextSessions = { ...current }
+        delete nextSessions[id]
+        writeFocusSessions(nextSessions)
+        return nextSessions
+      })
     } catch (error: any) {
       console.error('删除待办失败:', error)
       setErrorMessage('删除失败')
       setTimeout(() => setErrorMessage(null), 3000)
     }
   }
+
+  const patchFocusSession = useCallback((taskId: string, patch: Partial<FocusSessionRecord>) => {
+    setFocusSessions((current) => {
+      const existingSession = current[taskId]
+      if (!existingSession) return current
+
+      const nextSessions = {
+        ...current,
+        [taskId]: {
+          ...existingSession,
+          ...patch,
+          updatedAt: Date.now(),
+        },
+      }
+      writeFocusSessions(nextSessions)
+      return nextSessions
+    })
+  }, [])
+
+  const removeFocusSession = useCallback((taskId: string) => {
+    setFocusSessions((current) => {
+      if (!current[taskId]) return current
+      const nextSessions = { ...current }
+      delete nextSessions[taskId]
+      writeFocusSessions(nextSessions)
+      return nextSessions
+    })
+  }, [])
+
+  const handleStartFocus = useCallback((task: DailyTask, anchorRect?: { top: number; left: number; width: number; height: number; right?: number; bottom?: number } | null) => {
+    setFocusSessions((current) => {
+      const existingSession = current[task.id]
+      const panelWidth = 356
+      const viewportPadding = 18
+      const anchorLeft = anchorRect?.left ?? Math.max(72, window.innerWidth - 470)
+      const anchorTop = anchorRect?.top ?? 96
+      const anchorRight = anchorRect?.right ?? anchorLeft + (anchorRect?.width ?? 0)
+      const nextLeftCandidate = anchorLeft - panelWidth - 18
+      const nextLeft = nextLeftCandidate > viewportPadding
+        ? nextLeftCandidate
+        : Math.min(window.innerWidth - panelWidth - viewportPadding, anchorRight + 18)
+      const nextTop = Math.min(window.innerHeight - 520, Math.max(viewportPadding, anchorTop - 20))
+
+      const nextSession: FocusSessionRecord = existingSession
+        ? {
+            ...existingSession,
+            title: task.content,
+            panelOpen: true,
+            position: existingSession.position ?? { top: nextTop, left: nextLeft },
+            updatedAt: Date.now(),
+          }
+        : {
+            taskId: task.id,
+            title: task.content,
+            accumulatedMs: 0,
+            startedAt: Date.now(),
+            isRunning: true,
+            panelOpen: true,
+            position: { top: nextTop, left: nextLeft },
+            updatedAt: Date.now(),
+          }
+
+      const nextSessions = { ...current, [task.id]: nextSession }
+      writeFocusSessions(nextSessions)
+      return nextSessions
+    })
+  }, [])
 
   // 获取关联项标题和颜色 - 找到 TODO 所属的 Objective（祖父级）
   const getLinkedItemInfo = (linkedGoalId: string | null) => {
@@ -305,6 +425,7 @@ export const MainBoard: React.FC<MainBoardProps> = ({
   // 处理点击任务项 - 联动左侧选中态（需要滚动）
   const handleTaskClick = (task: DailyTask) => {
     setSelectedTaskId(task.id)
+    setSelectedExecutionItemId(null)
     onSelectionTitleChange?.({ id: task.id, title: task.content })
     if (!onSetActiveObjective) return
 
@@ -415,6 +536,7 @@ export const MainBoard: React.FC<MainBoardProps> = ({
   })
 
   return (
+    <>
     <DroppableMainBoard dropZoneId={dropZoneId} className={className} glassMode={glassMode}>
       {/* 日历 Header */}
       <CalendarHeader
@@ -503,9 +625,18 @@ export const MainBoard: React.FC<MainBoardProps> = ({
                     isSorting={activeSortTaskId === getTaskSortableId(task.id)}
                     showSortInsertion={overSortTaskId === getTaskSortableId(task.id) && activeSortTaskId !== getTaskSortableId(task.id)}
                     activeChildSortId={activeChildSortId}
+                    onStartFocus={handleStartFocus}
+                    onResumeFocus={(task) => handleStartFocus(task)}
+                    focusDurationLabel={focusSessions[task.id] ? formatFocusDuration(getFocusElapsedMs(focusSessions[task.id], focusNow)) : null}
+                    focusState={focusSessions[task.id] ? (focusSessions[task.id].isRunning ? 'running' : 'paused') : null}
+                    isFocusActive={Boolean(focusSessions[task.id])}
                     laneMode={laneMode}
                     collapsedExecutionKrIds={collapsedExecutionKrIds}
                     onToggleExecutionKrCollapsed={toggleExecutionKrCollapsed}
+                    selectedExecutionItemId={selectedExecutionItemId}
+                    onSelectExecutionItem={(item) => {
+                      setSelectedExecutionItemId(item.id)
+                    }}
                     dndScope={dndScope}
                     preferDeleteFirst={useChatBottomComposer}
                   />
@@ -543,6 +674,20 @@ export const MainBoard: React.FC<MainBoardProps> = ({
         </div>
       ) : null}
     </DroppableMainBoard>
+
+    {Object.values(focusSessions)
+      .filter((session) => session.panelOpen)
+      .map((session) => (
+        <TaskFocusPanel
+          key={session.taskId}
+          session={session}
+          onUpdateSession={patchFocusSession}
+          onHidePanel={(taskId) => patchFocusSession(taskId, { panelOpen: false })}
+          onCompleteSession={removeFocusSession}
+          onAbandonSession={removeFocusSession}
+        />
+      ))}
+    </>
   )
 }
 
@@ -563,6 +708,8 @@ const ExecutionEntry: React.FC<{
   onDelete: (id: string) => void
   onUpdateContent?: (id: string, content: string) => void
   onMoveToToday?: (id: string) => void
+  onStartFocus?: (task: DailyTask, anchorRect?: { top: number; left: number; width: number; height: number; right?: number; bottom?: number } | null) => void
+  onResumeFocus?: (task: DailyTask) => void
   onClick?: () => void
   isHighlighted?: boolean
   isRelationHighlighted?: boolean
@@ -572,9 +719,14 @@ const ExecutionEntry: React.FC<{
   isSorting?: boolean
   showSortInsertion?: boolean
   activeChildSortId?: string | null
+  focusDurationLabel?: string | null
+  focusState?: 'running' | 'paused' | null
+  isFocusActive?: boolean
   laneMode?: boolean
   collapsedExecutionKrIds: Set<string>
   onToggleExecutionKrCollapsed: (itemId: string) => void
+  selectedExecutionItemId: string | null
+  onSelectExecutionItem: (item: Item) => void
   dndScope?: string
   preferDeleteFirst?: boolean
 }> = ({
@@ -592,6 +744,8 @@ const ExecutionEntry: React.FC<{
   onDelete,
   onUpdateContent,
   onMoveToToday,
+  onStartFocus,
+  onResumeFocus,
   onClick,
   isHighlighted,
   isRelationHighlighted,
@@ -601,9 +755,14 @@ const ExecutionEntry: React.FC<{
   isSorting,
   showSortInsertion,
   activeChildSortId,
+  focusDurationLabel,
+  focusState,
+  isFocusActive = false,
   laneMode = false,
   collapsedExecutionKrIds,
   onToggleExecutionKrCollapsed,
+  selectedExecutionItemId,
+  onSelectExecutionItem,
   dndScope = 'main',
   preferDeleteFirst = false,
 }) => {
@@ -633,6 +792,8 @@ const ExecutionEntry: React.FC<{
         showSortInsertion={showSortInsertion}
         activeChildSortId={activeChildSortId}
         laneMode={laneMode}
+        selectedExecutionItemId={selectedExecutionItemId}
+        onSelectExecutionItem={onSelectExecutionItem}
         dndScope={dndScope}
         preferDeleteFirst={preferDeleteFirst}
       />
@@ -661,6 +822,8 @@ const ExecutionEntry: React.FC<{
         isSelected={isSelected}
         isCollapsed={collapsedExecutionKrIds.has(sourceItem.id)}
         onToggleCollapsed={() => onToggleExecutionKrCollapsed(sourceItem.id)}
+        selectedExecutionItemId={selectedExecutionItemId}
+        onSelectExecutionItem={onSelectExecutionItem}
         dndScope={dndScope}
         preferDeleteFirst={preferDeleteFirst}
       />
@@ -674,6 +837,8 @@ const ExecutionEntry: React.FC<{
       onDelete={onDelete}
       onUpdateContent={onUpdateContent}
       onMoveToToday={onMoveToToday}
+      onStartFocus={onStartFocus}
+      onResumeFocus={onResumeFocus}
       linkedItemTitle={isManual ? null : linkedItemTitle}
       onClick={onClick}
       isHighlighted={isHighlighted}
@@ -684,6 +849,9 @@ const ExecutionEntry: React.FC<{
       isSorting={isSorting}
       showSortInsertion={showSortInsertion}
       preferDeleteFirst={preferDeleteFirst}
+      focusDurationLabel={focusDurationLabel}
+      focusState={focusState}
+      isFocusActive={isFocusActive}
     />
   )
 }
@@ -708,6 +876,8 @@ const ObjectiveExecutionSection: React.FC<{
   showSortInsertion?: boolean
   activeChildSortId?: string | null
   laneMode?: boolean
+  selectedExecutionItemId: string | null
+  onSelectExecutionItem: (item: Item) => void
   dndScope?: string
   preferDeleteFirst?: boolean
 }> = ({
@@ -730,6 +900,8 @@ const ObjectiveExecutionSection: React.FC<{
   showSortInsertion,
   activeChildSortId,
   laneMode = false,
+  selectedExecutionItemId,
+  onSelectExecutionItem,
   dndScope = 'main',
   preferDeleteFirst = false,
 }) => {
@@ -792,6 +964,8 @@ const ObjectiveExecutionSection: React.FC<{
                   activeChildSortId={activeChildSortId}
                   isRowHighlighted={highlightedSourceItemIds.includes(kr.id)}
                   isChildColumn
+                  selectedExecutionItemId={selectedExecutionItemId}
+                  onSelectExecutionItem={onSelectExecutionItem}
                 />
               </SortableExecutionColumn>
             ))}
@@ -872,6 +1046,8 @@ const KRExecutionColumn: React.FC<{
   isSelected?: boolean
   isCollapsed?: boolean
   onToggleCollapsed?: () => void
+  selectedExecutionItemId?: string | null
+  onSelectExecutionItem?: (item: Item) => void
   dndScope?: string
   preferDeleteFirst?: boolean
 }> = ({
@@ -895,6 +1071,8 @@ const KRExecutionColumn: React.FC<{
   isRowHighlighted = false,
   isCollapsed = false,
   onToggleCollapsed,
+  selectedExecutionItemId,
+  onSelectExecutionItem,
   dndScope = 'main',
   preferDeleteFirst = false,
 }) => {
@@ -980,7 +1158,9 @@ const KRExecutionColumn: React.FC<{
                 color={task.color}
                 isEditing={editingSourceItemId === todo.id}
                 isHighlighted={highlightedSourceItemIds.includes(todo.id)}
+                isSelected={selectedExecutionItemId === todo.id}
                 isSorting={activeChildSortId === `${dndScope}-execution:${todo.id}`}
+                onClick={() => onSelectExecutionItem?.(todo)}
                 onStartEdit={() => setEditingSourceItemId(todo.id)}
                 onSave={onUpdateExecutionItemTitle}
                 onDelete={onDeleteExecutionItem}
@@ -1225,9 +1405,11 @@ const EditableExecutionRow: React.FC<{
   color?: string | null
   isEditing: boolean
   isHighlighted?: boolean
+  isSelected?: boolean
   isSorting?: boolean
   subtitle?: string
   trailingIcon?: React.ReactNode
+  onClick?: () => void
   onStartEdit: () => void
   onSave: (itemId: string, title: string) => Promise<void>
   onDelete: (itemId: string) => Promise<void>
@@ -1238,9 +1420,11 @@ const EditableExecutionRow: React.FC<{
   color,
   isEditing,
   isHighlighted = false,
+  isSelected = false,
   isSorting = false,
   subtitle,
   trailingIcon,
+  onClick,
   onStartEdit,
   onSave,
   onDelete,
@@ -1270,15 +1454,21 @@ const EditableExecutionRow: React.FC<{
 
   return (
     <div
+      onClick={(event) => {
+        event.stopPropagation()
+        onClick?.()
+      }}
       onContextMenu={handleContextMenu}
       onDoubleClick={(event) => {
         event.stopPropagation()
         onStartEdit()
       }}
-      className={`group/row flex items-center gap-3 rounded-[12px] px-0 py-2.5 transition-all duration-300 ${
+      className={`group/row flex items-center gap-3 rounded-[12px] border px-3 py-2.5 transition-all duration-200 ${
         isHighlighted
-          ? 'bg-[#f6f1ff]'
-          : 'bg-transparent'
+          ? 'border-[#d8cdfc] bg-[#f6f1ff]'
+          : isSelected
+            ? 'border-[#e1e5eb] bg-[#f4f6f8]'
+            : 'border-transparent bg-transparent hover:border-[#eaedf2] hover:bg-[#f7f8fa]'
       }`}
       style={{
         opacity: isSorting ? 0.92 : 1,
@@ -1286,7 +1476,10 @@ const EditableExecutionRow: React.FC<{
     >
       <button
         type="button"
-        onClick={() => void onToggle(item)}
+        onClick={(event) => {
+          event.stopPropagation()
+          void onToggle(item)
+        }}
         className="flex h-5 w-5 flex-shrink-0 items-center justify-center"
       >
         <CircleCheck
@@ -1316,7 +1509,7 @@ const EditableExecutionRow: React.FC<{
             placeholder={item.type === 'KR' ? '输入关键结果' : '输入待办'}
           />
         ) : (
-          <div className={`truncate text-[14px] font-medium ${item.status === 1 ? 'text-gray-400 line-through' : 'text-[#8a919c]'}`}>
+          <div className={`truncate text-[14px] font-medium ${item.status === 1 ? 'text-gray-400 line-through' : isSelected ? 'text-[#596273]' : 'text-[#8a919c] group-hover/row:text-[#596273]'}`}>
             {item.title || '未命名'}
           </div>
         )}

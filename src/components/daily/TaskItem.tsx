@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, Trash2, CalendarArrowDown } from 'lucide-react'
+import { Check, Trash2, CalendarArrowDown, Timer } from 'lucide-react'
 import type { DailyTask } from '../../store/index'
 import { DAILY_TASK_ROW_BASE_CLASS } from './taskRowStyles'
 
@@ -10,6 +10,7 @@ interface TaskItemProps {
   onDelete: (id: string) => void
   onUpdateContent?: (id: string, content: string) => void
   onMoveToToday?: (id: string) => void
+  onStartFocus?: (task: DailyTask, anchorRect?: { top: number; left: number; width: number; height: number; right?: number; bottom?: number }) => void
   linkedItemTitle?: string | null
   onClick?: () => void
   isHighlighted?: boolean
@@ -20,6 +21,10 @@ interface TaskItemProps {
   isSorting?: boolean
   showSortInsertion?: boolean
   preferDeleteFirst?: boolean
+  focusDurationLabel?: string | null
+  focusState?: 'running' | 'paused' | null
+  onResumeFocus?: (task: DailyTask) => void
+  isFocusActive?: boolean
 }
 
 export const TaskItem: React.FC<TaskItemProps> = ({
@@ -28,6 +33,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   onDelete,
   onUpdateContent,
   onMoveToToday,
+  onStartFocus,
   onClick,
   isHighlighted,
   isRelationHighlighted = false,
@@ -37,6 +43,10 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   isSorting = false,
   showSortInsertion = false,
   preferDeleteFirst = false,
+  focusDurationLabel = null,
+  focusState = null,
+  onResumeFocus,
+  isFocusActive = false,
 }) => {
   // 判断是否为 OKR 派生项
   const isOkrDerived = (task.entryType ?? (task.linkedGoalId ? 'todo' : 'manual')) !== 'manual'
@@ -48,6 +58,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   // 右键菜单状态
   const [showContextMenu, setShowContextMenu] = useState(false)
   const [contextMenuPos, setContextMenuPos] = useState({ x: 0, y: 0 })
+  const [menuAnchorRect, setMenuAnchorRect] = useState<{ top: number; left: number; width: number; height: number; right: number; bottom: number } | null>(null)
 
   // 编辑状态
   const [isEditing, setIsEditing] = useState(false)
@@ -59,6 +70,15 @@ export const TaskItem: React.FC<TaskItemProps> = ({
     e.preventDefault()
     e.stopPropagation()
     setContextMenuPos({ x: e.clientX, y: e.clientY })
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    setMenuAnchorRect({
+      top: rect.top,
+      left: rect.left,
+      width: rect.width,
+      height: rect.height,
+      right: rect.right,
+      bottom: rect.bottom,
+    })
     setShowContextMenu(true)
   }
 
@@ -76,6 +96,11 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   // 处理移至今日
   const handleMoveToToday = () => {
     onMoveToToday?.(task.id)
+    handleCloseContextMenu()
+  }
+
+  const handleStartFocus = () => {
+    onStartFocus?.(task, menuAnchorRect ?? undefined)
     handleCloseContextMenu()
   }
 
@@ -145,9 +170,10 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           ${DAILY_TASK_ROW_BASE_CLASS} cursor-pointer
           ${task.isDone ? 'opacity-50' : ''}
           ${isRelationHighlighted ? 'objective-board-linked-pulse border border-dashed border-[rgba(246,70,93,0.34)] bg-[rgba(246,70,93,0.05)]' : ''}
+          ${!isRelationHighlighted && isFocusActive ? 'border-[#272729] bg-[#272729]' : ''}
           ${!isRelationHighlighted && isHighlighted ? 'bg-blue-50/80 animate-pulse-highlight border-blue-100' : ''}
-          ${!isRelationHighlighted && isSelected ? 'bg-[#f3f5f7] border-[#e4e7eb]' : ''}
-          ${!isRelationHighlighted && !isSelected ? 'hover:bg-[#f7f8fa]' : ''}
+          ${!isRelationHighlighted && !isFocusActive && isSelected ? 'bg-[#f3f5f7] border-[#e4e7eb]' : ''}
+          ${!isRelationHighlighted && !isFocusActive && !isSelected ? 'hover:bg-[#f7f8fa]' : ''}
         `}
         style={{
           boxShadow: isSorting ? 'inset 0 0 0 1px rgba(125,108,242,0.1)' : undefined,
@@ -208,7 +234,9 @@ export const TaskItem: React.FC<TaskItemProps> = ({
                 text-[14px] font-medium transition-all duration-150 truncate whitespace-nowrap overflow-hidden
                 ${task.isDone
                   ? 'text-gray-400 line-through'
-                  : 'text-[#48515d]'
+                  : isFocusActive
+                    ? 'text-white'
+                    : 'text-[#48515d]'
                 }
               `}
               title={task.content}
@@ -218,6 +246,31 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           )}
         </div>
 
+        {focusDurationLabel ? (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation()
+              onResumeFocus?.(task)
+            }}
+            className={`ml-2 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold transition-colors ${
+              isFocusActive
+                ? 'bg-white text-[#272729] hover:bg-white/90'
+                : 'bg-white text-[#272729] hover:bg-[#f7f7f8]'
+            }`}
+            aria-label="打开专注面板"
+          >
+            <span
+              className={`h-2 w-2 flex-shrink-0 rounded-full ${
+                focusState === 'running'
+                  ? 'animate-pulse bg-[#F6465D] shadow-[0_0_0_3px_rgba(246,70,93,0.12)]'
+                  : 'bg-[#c9ced6]'
+              }`}
+            />
+            <span className="font-semibold">{focusDurationLabel}</span>
+          </button>
+        ) : null}
+
       </div>
 
       {/* 右键菜单 */}
@@ -226,6 +279,13 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           className="fixed z-[280] bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 min-w-[140px]"
           style={{ left: contextMenuPos.x, top: contextMenuPos.y }}
         >
+          <button
+            onClick={handleStartFocus}
+            className="w-full px-4 py-2 text-left text-sm hover:bg-[#fff8e8] text-[#8b601d] flex items-center gap-2"
+          >
+            <Timer className="w-4 h-4" />
+            <span>专注</span>
+          </button>
           {preferDeleteFirst && (
             <button
               onClick={handleDelete}

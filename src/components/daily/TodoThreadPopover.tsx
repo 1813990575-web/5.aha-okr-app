@@ -1,61 +1,21 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { ArrowUp, ChevronDown, ChevronUp, MessageCircleMore, Pencil, Pin, Trash2 } from 'lucide-react'
+import { ArrowUp, ChevronDown, ChevronUp, FileText, MessageCircleMore, Pencil, Pin, Trash2, X } from 'lucide-react'
+import {
+  deleteTodoThreadMessage,
+  getTodoThreadMessages,
+  getTodoThreadStorageId,
+  saveTodoThreadMessage,
+  type ThreadEntityKind,
+  type ThreadMessage,
+} from './todoThreadStore'
 
-type ThreadEntityKind = 'task' | 'item'
-
-interface ThreadMessage {
-  id: string
-  text: string
-  createdAt: number
-}
+export { getLatestTodoThreadPreview, readTodoThreads, subscribeTodoThreadUpdates } from './todoThreadStore'
 
 interface TodoThreadPopoverProps {
   entityId: string
   entityKind: ThreadEntityKind
   title: string
-}
-
-const THREAD_STORAGE_KEY = 'aha-okr-todo-threads'
-const THREAD_UPDATE_EVENT = 'aha-okr-todo-threads-updated'
-
-export function readTodoThreads(): Record<string, ThreadMessage[]> {
-  if (typeof window === 'undefined') return {}
-
-  try {
-    const raw = window.localStorage.getItem(THREAD_STORAGE_KEY)
-    if (!raw) return {}
-    const parsed = JSON.parse(raw) as Record<string, ThreadMessage[]>
-    return parsed && typeof parsed === 'object' ? parsed : {}
-  } catch {
-    return {}
-  }
-}
-
-function writeThreads(nextValue: Record<string, ThreadMessage[]>) {
-  if (typeof window === 'undefined') return
-  window.localStorage.setItem(THREAD_STORAGE_KEY, JSON.stringify(nextValue))
-  window.dispatchEvent(new CustomEvent(THREAD_UPDATE_EVENT))
-}
-
-export function getLatestTodoThreadPreview(storageId: string): string {
-  const threads = readTodoThreads()
-  const messages = Array.isArray(threads[storageId]) ? threads[storageId] : []
-  const latestMessage = messages[messages.length - 1]
-  return latestMessage?.text?.trim() || ''
-}
-
-export function subscribeTodoThreadUpdates(callback: () => void): () => void {
-  if (typeof window === 'undefined') return () => {}
-
-  window.addEventListener('storage', callback)
-  window.addEventListener('focus', callback)
-  window.addEventListener(THREAD_UPDATE_EVENT, callback as EventListener)
-  return () => {
-    window.removeEventListener('storage', callback)
-    window.removeEventListener('focus', callback)
-    window.removeEventListener(THREAD_UPDATE_EVENT, callback as EventListener)
-  }
 }
 
 function formatTime(timestamp: number) {
@@ -92,7 +52,7 @@ export const TodoThreadPopover: React.FC<TodoThreadPopoverProps> = ({
   const composerToggleHeight = 32
   const composerGap = 2
   const composerBottomPadding = 12
-  const storageId = `${entityKind}:${entityId}`
+  const storageId = getTodoThreadStorageId(entityKind, entityId)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
   const closeTimerRef = useRef<number | null>(null)
@@ -108,8 +68,7 @@ export const TodoThreadPopover: React.FC<TodoThreadPopoverProps> = ({
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
 
   useEffect(() => {
-    const threads = readTodoThreads()
-    setMessages(Array.isArray(threads[storageId]) ? threads[storageId] : [])
+    setMessages(getTodoThreadMessages(storageId))
   }, [storageId])
 
   const hasMessages = messages.length > 0
@@ -192,14 +151,6 @@ export const TodoThreadPopover: React.FC<TodoThreadPopoverProps> = ({
     setOpen(true)
   }, [clearCloseTimer])
 
-  const scheduleClose = useCallback(() => {
-    if (pinned) return
-    clearCloseTimer()
-    closeTimerRef.current = window.setTimeout(() => {
-      setOpen(false)
-    }, 140)
-  }, [clearCloseTimer, pinned])
-
   const handleDragStart = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     if (!pinned || event.button !== 0) return
 
@@ -243,59 +194,14 @@ export const TodoThreadPopover: React.FC<TodoThreadPopoverProps> = ({
     const nextText = draft.trim()
     if (!nextText) return
 
-    setMessages((prev) => {
-      const now = Date.now()
-      const nextThreads = readTodoThreads()
-      let nextMessages: ThreadMessage[]
-
-      if (editingMessageId) {
-        const target = prev.find((message) => message.id === editingMessageId)
-        if (target) {
-          const editedMessage: ThreadMessage = {
-            ...target,
-            text: nextText,
-            createdAt: now,
-          }
-          nextMessages = [...prev.filter((message) => message.id !== editingMessageId), editedMessage]
-        } else {
-          nextMessages = [
-            ...prev,
-            {
-              id: `${now}-${Math.random().toString(16).slice(2)}`,
-              text: nextText,
-              createdAt: now,
-            },
-          ]
-        }
-      } else {
-        nextMessages = [
-          ...prev,
-          {
-            id: `${now}-${Math.random().toString(16).slice(2)}`,
-            text: nextText,
-            createdAt: now,
-          },
-        ]
-      }
-
-      nextThreads[storageId] = nextMessages
-      writeThreads(nextThreads)
-      return nextMessages
-    })
-
+    setMessages(saveTodoThreadMessage(storageId, nextText, editingMessageId))
     setDraft('')
     setEditingMessageId(null)
     setComposerExpanded(false)
   }, [draft, editingMessageId, storageId])
 
   const handleDeleteMessage = useCallback((messageId: string) => {
-    setMessages((prev) => {
-      const nextMessages = prev.filter((message) => message.id !== messageId)
-      const nextThreads = readTodoThreads()
-      nextThreads[storageId] = nextMessages
-      writeThreads(nextThreads)
-      return nextMessages
-    })
+    setMessages(deleteTodoThreadMessage(storageId, messageId))
 
     if (editingMessageId === messageId) {
       setEditingMessageId(null)
@@ -319,15 +225,13 @@ export const TodoThreadPopover: React.FC<TodoThreadPopoverProps> = ({
     handleSend()
   }, [composerExpanded, handleSend])
 
-  const emptyHint = useMemo(() => '这里可以记录这条待办的想法、进展或临时备注。', [])
+  const emptyHint = useMemo(() => '未添加备注', [])
 
   return (
     <>
       <button
         ref={triggerRef}
         type="button"
-        onMouseEnter={openPopover}
-        onMouseLeave={scheduleClose}
         onClick={(event) => {
           event.stopPropagation()
           if (open) {
@@ -351,8 +255,6 @@ export const TodoThreadPopover: React.FC<TodoThreadPopoverProps> = ({
             <div
               className="fixed z-[320] w-[320px]"
               style={{ top: position.top, left: position.left }}
-              onMouseEnter={openPopover}
-              onMouseLeave={scheduleClose}
               onClick={(event) => event.stopPropagation()}
             >
               <section
@@ -369,22 +271,40 @@ export const TodoThreadPopover: React.FC<TodoThreadPopoverProps> = ({
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className={`truncate text-[20px] font-semibold tracking-[-0.03em] ${pinned ? 'text-[#5f4916]' : 'text-[#232a36]'}`}>{title}</div>
-                    <button
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        clearCloseTimer()
-                        setPinned((current) => !current)
-                      }}
-                      className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border transition-colors ${
-                        pinned
-                          ? 'border-[#bb5b45] bg-[#ffe4c8] text-[#bb4f37]'
-                          : 'border-[#e5e7eb] bg-white text-[#b3bac6] hover:text-[#5f6673]'
-                      }`}
-                      aria-label={pinned ? '取消固定浮窗' : '固定浮窗'}
-                    >
-                      <Pin className={`h-3.5 w-3.5 ${pinned ? 'fill-current' : ''}`} strokeWidth={2} />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          clearCloseTimer()
+                          setPinned((current) => !current)
+                        }}
+                        className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border transition-colors ${
+                          pinned
+                            ? 'border-[#bb5b45] bg-[#ffe4c8] text-[#bb4f37]'
+                            : 'border-[#e5e7eb] bg-white text-[#b3bac6] hover:text-[#5f6673]'
+                        }`}
+                        aria-label={pinned ? '取消固定浮窗' : '固定浮窗'}
+                      >
+                        <Pin className={`h-3.5 w-3.5 ${pinned ? 'fill-current' : ''}`} strokeWidth={2} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          clearCloseTimer()
+                          setOpen(false)
+                        }}
+                        className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border transition-colors ${
+                          pinned
+                            ? 'border-[#cfb86f] bg-[#f7e6ab] text-[#8c7132] hover:text-[#6d551f]'
+                            : 'border-[#e5e7eb] bg-white text-[#b3bac6] hover:text-[#5f6673]'
+                        }`}
+                        aria-label="关闭浮窗"
+                      >
+                        <X className="h-3.5 w-3.5" strokeWidth={2} />
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -394,12 +314,15 @@ export const TodoThreadPopover: React.FC<TodoThreadPopoverProps> = ({
                     style={{ paddingBottom: messageListBottomPadding }}
                   >
                     {messages.length === 0 ? (
-                      <div className={`px-4 py-5 text-[13px] leading-6 ${
-                        pinned
-                          ? 'rounded-[12px] border border-dashed border-[#d5bb6d] bg-[#f8e7a9] text-[#9b8044]'
-                          : 'rounded-[18px] border border-dashed border-[#e7eaf0] bg-[#f8fafc] text-[#98a1af]'
-                      }`}>
-                        {emptyHint}
+                      <div
+                        className={`flex h-full items-center justify-center text-[13px] leading-6 ${
+                          pinned ? 'text-[#9b8044]' : 'text-[#98a1af]'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-3.5 w-3.5 opacity-70" strokeWidth={1.8} />
+                          <span className="tracking-[0.01em]">{emptyHint}</span>
+                        </div>
                       </div>
                     ) : (
                       <div className="space-y-3">

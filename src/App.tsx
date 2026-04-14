@@ -130,8 +130,7 @@ function App() {
   }, [])
 
   const createLinkedExecutionEntry = useCallback(async (
-    item: { id: string; title: string; color?: string | null; type?: DragItem['type'] },
-    source: 'menu' | 'drag'
+    item: { id: string; title: string; color?: string | null; type?: DragItem['type'] }
   ) => {
     if (okrViewMode === 'daily' && item.type === 'O') {
       setDragNotice('当前执行区最高只接受关键结果，请改为拖入关键结果')
@@ -222,7 +221,6 @@ function App() {
       )
     }
 
-    console.log(`[App] ${source === 'drag' ? '拖拽' : '菜单'}创建执行项成功:`, newTask)
     setTasks(prev => {
       const descendantTaskIds = new Set(descendantTasks.map((task) => task.id))
       return [newTask, ...prev.filter((task) => !descendantTaskIds.has(task.id))]
@@ -238,10 +236,8 @@ function App() {
 
   // 处理加入今日待办 - 从左侧右键菜单添加
   const handleAddToDailyTasks = useCallback(async (item: { id: string; title: string; color?: string | null; type?: DragItem['type'] }) => {
-    console.log('[App] 加入今日待办:', item)
-
     try {
-      await createLinkedExecutionEntry(item, 'menu')
+      await createLinkedExecutionEntry(item)
     } catch (error) {
       console.error('[App] 创建任务失败:', error)
     }
@@ -249,10 +245,8 @@ function App() {
 
   // 处理拖拽结束 - 将 OKR 项拖入中间面板
   const handleDragEnd = useCallback(async (item: DragItem, _dropZoneId?: string | null) => {
-    console.log('[App] 拖拽结束:', item)
-
     try {
-      await createLinkedExecutionEntry(item, 'drag')
+      await createLinkedExecutionEntry(item)
     } catch (error) {
       console.error('[App] 创建任务失败:', error)
     }
@@ -260,7 +254,6 @@ function App() {
 
   // 处理手动添加任务
   const handleCreateTask = useCallback(async (content: string) => {
-    console.log("[DIAG] App handleCreateTask called with:", content)
     try {
       const dateKey = formatDateKey(selectedDate)
       const topSortOrder =
@@ -278,13 +271,8 @@ function App() {
         entryType: 'manual',
         origin: 'manual',
       })
-      console.log("[DIAG] Task created, updating state with:", newTask)
       // 新任务添加到最上方
-      setTasks(prev => {
-        console.log("[DIAG] setTasks callback called, prev length:", prev.length)
-        return [newTask, ...prev]
-      })
-      console.log("[DIAG] setTasks called")
+      setTasks(prev => [newTask, ...prev])
     } catch (error) {
       console.error('[App] 创建任务失败:', error)
     }
@@ -341,15 +329,9 @@ function App() {
 
   // 处理删除任务
   const handleDeleteTask = useCallback(async (id: string) => {
-    console.log("[DIAG] App handleDeleteTask called for id:", id)
     try {
       await window.electronAPI.dailyTasks.deleteTask(id)
-      console.log("[DIAG] Task deleted from DB, updating state")
-      setTasks(prev => {
-        console.log("[DIAG] setTasks filter callback, prev length:", prev.length)
-        return prev.filter(task => task.id !== id)
-      })
-      console.log("[DIAG] setTasks called for delete")
+      setTasks(prev => prev.filter(task => task.id !== id))
     } catch (error) {
       console.error('[App] 删除任务失败:', error)
     }
@@ -369,13 +351,11 @@ function App() {
 
   // 处理移至今日 - 将过去日期的任务移动到今天的日期
   const handleMoveTaskToToday = useCallback(async (id: string) => {
-    console.log('[DIAG] App handleMoveTaskToToday called for id:', id)
     try {
       const todayKey = formatDateKey(new Date())
       await window.electronAPI.dailyTasks.updateTask(id, { date: todayKey })
       // 从当前列表移除（因为日期已改变）
       setTasks(prev => prev.filter(task => task.id !== id))
-      console.log('[DIAG] Task moved to today:', id)
     } catch (error) {
       console.error('[App] 移至今日失败:', error)
     }

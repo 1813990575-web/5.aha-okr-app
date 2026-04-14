@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useDndMonitor } from '@dnd-kit/core'
 import { SortableContext, horizontalListSortingStrategy, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { ArrowUp, Check, Eye, ImagePlus, MoreHorizontal, Plus, X } from 'lucide-react'
+import { ArrowUp, CalendarDays, Check, Eye, ImagePlus, MoreHorizontal, Plus, X } from 'lucide-react'
 import type { DailyTask, Item } from '../store/index'
 import { getObjectiveColorOption } from './Sidebar'
 import { MainBoard } from './MainBoard'
@@ -145,6 +145,39 @@ function formatVisionDateTime(timestamp: number): string {
   }).format(new Date(timestamp))
 }
 
+function getObjectiveCountdownDays(deadlineAt: string): number {
+  const target = new Date(deadlineAt)
+  target.setHours(0, 0, 0, 0)
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  return Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+}
+
+function formatObjectiveDeadline(deadlineAt?: string | null): { countdown: string; date: string; tone: string } | null {
+  if (!deadlineAt) return null
+
+  const days = getObjectiveCountdownDays(deadlineAt)
+  const target = new Date(deadlineAt)
+  if (Number.isNaN(target.getTime())) return null
+
+  const countdown =
+    days > 0 ? `剩 ${days} 天` : days === 0 ? '今天截止' : `已逾期 ${Math.abs(days)} 天`
+
+  const date = new Intl.DateTimeFormat('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+    .format(target)
+    .replace(/\//g, '.')
+
+  const tone = days < 0 ? 'text-[#c26a64]' : days <= 3 ? 'text-[#8b7663]' : 'text-[#2f3742]'
+
+  return { countdown, date: `截止 ${date}`, tone }
+}
+
 export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
   objective,
   tasks,
@@ -235,6 +268,10 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
   }, [visionMessages])
 
   const activeColor = getColorHex(boardObjective?.color ?? objective.color)
+  const objectiveDeadlineMeta = useMemo(
+    () => formatObjectiveDeadline(boardObjective?.objective_deadline_at ?? null),
+    [boardObjective?.objective_deadline_at]
+  )
 
   const refreshAfterMutation = useCallback(async () => {
     await loadItems({ showLoading: false })
@@ -625,37 +662,58 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
       <div className="traffic-light-space flex-shrink-0" />
 
       <div className="px-7 pb-8 pt-2">
-        {editingTarget?.id === boardObjective.id ? (
-          <input
-            autoFocus
-            value={editingTarget.value}
-            onChange={(e) => setEditingTarget({ ...editingTarget, value: e.target.value })}
-            onBlur={() => void saveTitle(boardObjective.id, editingTarget.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') void saveTitle(boardObjective.id, editingTarget.value)
-              if (e.key === 'Escape') setEditingTarget(null)
-            }}
-            className="typo-title-heading w-[520px] max-w-full border-none p-0 tracking-[-0.02em] outline-none"
-            style={{ color: activeColor }}
-          />
-        ) : (
-          <button
-            type="button"
-            onDoubleClick={() => setEditingTarget({ id: boardObjective.id, kind: 'objective', value: boardObjective.title })}
-            className="typo-title-heading w-full text-left tracking-[-0.02em]"
-            style={{ color: activeColor }}
-          >
-            {boardObjective.title}
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={openVisionDialog}
-          className="mt-2 flex w-full max-w-[760px] items-start gap-2 rounded-[10px] px-1 py-0.5 text-left text-[14px] leading-[1.55] text-[#6d7482] transition-colors hover:bg-black/[0.03] hover:text-[#575f6f]"
-        >
-          <Eye className="mt-[2px] h-4 w-4 flex-shrink-0 text-[#8a91a0]" strokeWidth={1.9} />
-          <span className="min-w-0 flex-1 truncate">{latestVisionPreview}</span>
-        </button>
+        <div className="min-w-0">
+          <div className="min-w-0">
+            {editingTarget?.id === boardObjective.id ? (
+              <input
+                autoFocus
+                value={editingTarget.value}
+                onChange={(e) => setEditingTarget({ ...editingTarget, value: e.target.value })}
+                onBlur={() => void saveTitle(boardObjective.id, editingTarget.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void saveTitle(boardObjective.id, editingTarget.value)
+                  if (e.key === 'Escape') setEditingTarget(null)
+                }}
+                className="typo-title-heading w-[520px] max-w-full border-none p-0 tracking-[-0.02em] outline-none"
+                style={{ color: activeColor }}
+              />
+            ) : (
+              <button
+                type="button"
+                onDoubleClick={() => setEditingTarget({ id: boardObjective.id, kind: 'objective', value: boardObjective.title })}
+                className="typo-title-heading w-full text-left tracking-[-0.02em]"
+                style={{ color: activeColor }}
+              >
+                {boardObjective.title}
+              </button>
+            )}
+          </div>
+
+          <div className="mt-2 flex max-w-[760px] flex-col gap-1.5">
+            <div className="flex items-start gap-2 rounded-[10px] px-1 py-0.5 text-[14px] leading-[1.55] text-[#6d7482]">
+              <CalendarDays className="mt-[2px] h-4 w-4 flex-shrink-0 text-[#8a91a0]" strokeWidth={1.9} />
+              <span className="min-w-0 flex-1 truncate">
+                {objectiveDeadlineMeta ? (
+                  <>
+                    <span className={`font-medium ${objectiveDeadlineMeta.tone}`}>{objectiveDeadlineMeta.countdown}</span>
+                    <span className="ml-2 text-[#9aa1ad]">{objectiveDeadlineMeta.date}</span>
+                  </>
+                ) : (
+                  <span className="text-[#9aa1ad]">添加截止日期</span>
+                )}
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={openVisionDialog}
+              className="flex w-full items-start gap-2 rounded-[10px] px-1 py-0.5 text-left text-[14px] leading-[1.55] text-[#6d7482] transition-colors hover:bg-black/[0.03] hover:text-[#575f6f]"
+            >
+              <Eye className="mt-[2px] h-4 w-4 flex-shrink-0 text-[#8a91a0]" strokeWidth={1.9} />
+              <span className="min-w-0 flex-1 truncate">{latestVisionPreview}</span>
+            </button>
+          </div>
+        </div>
       </div>
 
       <div
@@ -1256,7 +1314,7 @@ const SortableKrColumn: React.FC<SortableKrColumnProps> = ({
                 e.stopPropagation()
                 void onCreateTodo(kr.id)
               }}
-              className="flex h-7 w-7 items-center justify-center rounded-[8px] border border-black/[0.08] bg-white/70 text-[#5a6473] transition-colors hover:bg-black/[0.045]"
+              className="flex h-7 w-7 items-center justify-center text-[#5a6473] transition-colors hover:text-[#3f4856]"
               aria-label="新增待办"
               title="新增待办"
             >
