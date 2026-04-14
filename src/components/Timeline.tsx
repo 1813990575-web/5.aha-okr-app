@@ -183,13 +183,13 @@ export const Timeline: React.FC<TimelineProps> = ({ selectedId, selectedTitle, s
   return (
     <aside className="flex h-full w-full flex-col bg-transparent">
       <div className="app-drag-region traffic-light-space flex flex-shrink-0 items-center justify-end border-b border-black/[0.04] px-5 py-3">
-        <div className="text-[15px] font-semibold tracking-[0.02em] text-[#3a4452] tabular-nums [font-variant-numeric:tabular-nums]">
+        <div className="text-[14px] font-semibold tracking-[0.02em] text-[#3a4452] tabular-nums [font-variant-numeric:tabular-nums]">
           {timeLabel}
         </div>
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col px-4 py-4">
-        <div className="mb-2 min-h-[28px] text-[15px] font-medium leading-[1.4] text-[#4b5563]">
+        <div className="mb-2 min-h-[28px] text-[14px] font-medium leading-[1.4] text-[#4b5563]">
           {selectedTitle || '笔记'}
         </div>
 

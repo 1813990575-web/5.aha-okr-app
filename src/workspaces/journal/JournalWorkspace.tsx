@@ -108,7 +108,7 @@ const MiniCalendarPanel: React.FC<MiniCalendarPanelProps> = ({
 
         <div className="relative" ref={yearMenuRef}>
           <div className="flex items-center rounded-[14px] border border-black/[0.08] bg-white/82 shadow-[0_3px_10px_rgba(15,23,42,0.035)]">
-            <div className="px-4 py-2 text-center text-[15px] font-semibold tracking-[-0.02em] text-[#202631]">{monthLabel}</div>
+            <div className="px-4 py-2 text-center text-[14px] font-semibold tracking-[-0.02em] text-[#202631]">{monthLabel}</div>
             <button
               type="button"
               onClick={() => setShowYearMenu((prev) => !prev)}
@@ -145,7 +145,7 @@ const MiniCalendarPanel: React.FC<MiniCalendarPanelProps> = ({
 
       <div className="grid grid-cols-7 gap-2">
         {WEEKDAY_LABELS.map((label, index) => (
-          <div key={`${label}-${index}`} className="text-center text-[11px] font-semibold tracking-[0.08em] text-black/34">
+          <div key={`${label}-${index}`} className="text-center text-[12px] font-semibold tracking-[0.08em] text-black/34">
             {label}
           </div>
         ))}
@@ -198,10 +198,10 @@ const MiniCalendarPanel: React.FC<MiniCalendarPanelProps> = ({
                 <span
                   className="absolute inset-0 flex items-center justify-center font-medium"
                   style={{
-                    fontSize: 13,
+                    fontSize: 14,
                     lineHeight: '1',
                     color: 'rgba(64,68,76,0.52)',
-                    fontFamily: 'ui-rounded, SF Pro Rounded, SF Pro Text, Inter, system-ui, sans-serif',
+                    fontFamily: 'var(--font-apple)',
                   }}
                 >
                   {day.getDate()}
@@ -488,7 +488,7 @@ export const JournalWorkspace: React.FC = () => {
           className={`inline-flex items-center justify-center rounded-[14px] border border-dashed border-black/[0.12] bg-[#fafaf8] text-[#9a9ca3] transition-colors hover:bg-black/[0.03] ${sizeClass}`}
           aria-label="继续添加图片"
         >
-          <span className="text-[32px] leading-none">+</span>
+          <span className="text-[28px] leading-none">+</span>
         </button>
       </div>
     )
@@ -541,7 +541,7 @@ export const JournalWorkspace: React.FC = () => {
               className="flex h-full flex-col rounded-[28px] border border-black/[0.06] bg-white/70 px-6 py-5 shadow-[0_18px_44px_rgba(15,23,42,0.06)] backdrop-blur-xl"
             >
                 <div className="mb-4 flex items-center justify-between">
-                  <div className="text-[13px] font-medium tracking-[0.08em] text-black/28">编辑记录</div>
+                  <div className="text-[14px] font-medium tracking-[0.08em] text-black/28">编辑记录</div>
                   <button
                     type="button"
                     onClick={resetComposer}
@@ -557,7 +557,7 @@ export const JournalWorkspace: React.FC = () => {
                   value={editorText}
                   onChange={(event) => setEditorText(event.target.value)}
                   placeholder="编辑这条记录..."
-                  className="h-[220px] w-full resize-none border-none bg-transparent text-[16px] leading-8 text-[#202631] outline-none"
+                  className="h-[220px] w-full resize-none border-none bg-transparent text-[17px] leading-8 text-[#202631] outline-none"
                 />
 
                 {renderEditorImages('h-[84px] w-[84px]')}
@@ -609,7 +609,7 @@ export const JournalWorkspace: React.FC = () => {
                       onFocus={() => setIsComposerExpanded(true)}
                       onChange={(event) => setEditorText(event.target.value)}
                       placeholder="现在的想法是..."
-                      className={`w-full resize-none border-none bg-transparent text-[15px] text-[#202631] outline-none placeholder:text-black/28 transition-[height] duration-180 ease-out ${shouldExpandComposer ? 'h-[132px] overflow-y-auto leading-7' : 'h-7 min-h-[28px] overflow-hidden pt-0 leading-7'}`}
+                      className={`w-full resize-none border-none bg-transparent text-[14px] text-[#202631] outline-none placeholder:text-black/28 transition-[height] duration-180 ease-out ${shouldExpandComposer ? 'h-[132px] overflow-y-auto leading-7' : 'h-7 min-h-[28px] overflow-hidden pt-0 leading-7'}`}
                     />
 
                     <AnimatePresence initial={false}>
@@ -710,14 +710,14 @@ export const JournalWorkspace: React.FC = () => {
                               }}
                               style={{ borderRadius: 16 }}
                             >
-                              <div className="flex items-center gap-1.5 text-[13px] leading-6 text-black/30">
+                              <div className="flex items-center gap-1.5 text-[14px] leading-6 text-black/30">
                                 <span className="h-2.5 w-2.5 rounded-full bg-[#cf9a61] shadow-[0_0_0_1px_rgba(207,154,97,0.14)]" />
                                 <span>{formatTimelineTime(record.createdAt)}</span>
                               </div>
                               <div className="min-w-0">
                                 {previewText ? (
                                   <p
-                                    className="text-[15px] font-medium leading-6 text-[#202631]"
+                                    className="text-[14px] font-medium leading-6 text-[#202631]"
                                     style={{
                                       display: '-webkit-box',
                                       WebkitLineClamp: 1,
@@ -728,7 +728,7 @@ export const JournalWorkspace: React.FC = () => {
                                     {previewText}
                                   </p>
                                 ) : (
-                                  <p className="text-[15px] font-medium leading-6 text-black/26">仅上传了图片</p>
+                                  <p className="text-[14px] font-medium leading-6 text-black/26">仅上传了图片</p>
                                 )}
                               </div>
                               <div className="flex justify-end">

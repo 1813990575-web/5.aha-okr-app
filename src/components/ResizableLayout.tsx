@@ -14,7 +14,6 @@ interface ResizableLayoutProps {
   fullWidthPanel?: React.ReactNode
   leftPanelConfig?: Partial<PanelConfig>
   rightPanelConfig?: Partial<PanelConfig>
-  workspaceBackground?: string
 }
 
 const DEFAULT_LEFT_CONFIG: PanelConfig = {
@@ -30,6 +29,8 @@ const DEFAULT_RIGHT_CONFIG: PanelConfig = {
   defaultWidth: 412,
   maxWidth: 520,
 }
+
+const SIDEBAR_PANEL_BG = 'transparent'
 
 // 拖拽把手组件
 interface ResizeHandleProps {
@@ -105,7 +106,6 @@ export const ResizableLayout: React.FC<ResizableLayoutProps> = ({
   fullWidthPanel,
   leftPanelConfig = {},
   rightPanelConfig = {},
-  workspaceBackground = 'linear-gradient(180deg,#f6f1ea,#f2ece4)',
 }) => {
   const leftConfig = { ...DEFAULT_LEFT_CONFIG, ...leftPanelConfig }
   const rightConfig = { ...DEFAULT_RIGHT_CONFIG, ...rightPanelConfig }
@@ -143,20 +143,20 @@ export const ResizableLayout: React.FC<ResizableLayoutProps> = ({
       <div
         className="flex h-full w-full overflow-hidden"
         style={{
-          background: workspaceBackground,
+          background: '#f5f5f5',
           boxShadow: 'none',
         }}
       >
         {/* 左侧栏 */}
         <div
           className="flex-shrink-0 h-full overflow-hidden"
-          style={{ width: leftWidth }}
+          style={{ width: leftWidth, background: SIDEBAR_PANEL_BG }}
         >
           {leftPanel}
         </div>
 
         {/* 左侧与中间面板之间的拖拽带 */}
-        <div className="mr-[-5px] flex h-full flex-shrink-0 items-stretch">
+        <div className="mr-[-5px] flex h-full flex-shrink-0 items-stretch" style={{ background: SIDEBAR_PANEL_BG }}>
           <ResizeHandle onResize={handleLeftResize} direction="left" visibleLine />
         </div>
 

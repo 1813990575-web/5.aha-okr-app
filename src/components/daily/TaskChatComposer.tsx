@@ -30,8 +30,8 @@ export const TaskChatComposer: React.FC<TaskChatComposerProps> = ({ onSubmit, di
   }
 
   return (
-    <div className="rounded-[14px] border border-black/[0.08] bg-white px-3 py-2 shadow-[0_6px_16px_rgba(15,23,42,0.06)]">
-      <div className="flex items-center gap-2">
+    <div className="rounded-[14px] bg-[#f5f5f7] px-4 py-3">
+      <div className="flex min-h-[40px] items-center gap-2">
         <input
           ref={inputRef}
           type="text"
@@ -52,7 +52,7 @@ export const TaskChatComposer: React.FC<TaskChatComposerProps> = ({ onSubmit, di
           onClick={() => void handleSubmit()}
           disabled={!canSend}
           className={`flex h-7 w-7 items-center justify-center rounded-full transition-colors ${
-            canSend ? 'bg-[#dcdfe5] text-[#7b8390] hover:bg-[#cfd4dc]' : 'bg-[#eceef2] text-[#b9bfc9]'
+            canSend ? 'bg-[#1f2530] text-white hover:bg-[#161b24]' : 'bg-[#eceef2] text-[#b9bfc9]'
           }`}
           aria-label="发送待办"
         >

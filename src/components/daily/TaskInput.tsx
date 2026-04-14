@@ -42,13 +42,13 @@ export const TaskInput: React.FC<TaskInputProps> = ({ onSubmit, disabled }) => {
     <div
       className={`
         ${DAILY_TASK_ROW_BASE_CLASS} cursor-text
-        hover:bg-[#f7f8fa]
+        bg-[#f5f5f7] hover:bg-[#eff1f4]
         ${disabled || isSubmitting ? 'opacity-50 pointer-events-none' : ''}
       `}
       onClick={() => inputRef.current?.focus()}
     >
       {/* 勾选框占位 - 和任务项一样的样式 */}
-      <div className="w-5 h-5 rounded-[4px] border-2 border-gray-300 bg-white flex-shrink-0" />
+      <div className="w-5 h-5 rounded-[4px] border-2 border-[#c8cdd6] bg-transparent flex-shrink-0" />
 
       {/* 输入框 */}
       <input

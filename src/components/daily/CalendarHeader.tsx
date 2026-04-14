@@ -134,6 +134,7 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
   datesWithTasks,
   enableWindowDragRegion = true,
 }) => {
+  const isGlassMode = !enableWindowDragRegion
   const [dayProgress, setDayProgress] = useState(getDayProgress(selectedDate))
 
   // 当日期变化时更新进度
@@ -173,10 +174,10 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
   return (
     <div>
       {/* 上边栏：日期标题居中 + 回到今天 - 可拖拽区域 */}
-      <div className={`${enableWindowDragRegion ? 'app-drag-region' : 'app-no-drag'} relative flex items-center justify-center px-4 py-3 border-b border-[#eceef2] bg-[#fafbfc]`}>
+      <div className={`${enableWindowDragRegion ? 'app-drag-region' : 'app-no-drag'} relative flex items-center justify-center px-4 py-3 border-b ${isGlassMode ? 'border-black/[0.08] bg-white/52 backdrop-blur-[12px]' : 'border-[#eceef2] bg-[#fafbfc]'}`}>
         {/* 中间：日期 + 日历按钮 */}
         <div className="flex items-center gap-2">
-          <span className="text-[16px] font-semibold text-gray-800">
+          <span className="typo-body-emphasis text-gray-800">
             {formatDetailedDate(selectedDate)}
           </span>
           {/* 日历按钮 */}
@@ -191,7 +192,7 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
       </div>
 
       {/* 周历导航 + 进度条 - 共用一个白色底色，增加下方阴影与TODO区分 */}
-      <div className="border-b border-[#eceef2] bg-[#fafbfc] shadow-[0_10px_24px_rgba(17,24,39,0.04)]">
+      <div className={`border-b shadow-[0_10px_24px_rgba(17,24,39,0.04)] ${isGlassMode ? 'border-black/[0.08] bg-white/46 backdrop-blur-[12px]' : 'border-[#eceef2] bg-[#fafbfc]'}`}>
         {/* 星期列表 */}
         <div className="flex items-center justify-between px-2 py-3">
           {/* 左箭头 */}
@@ -215,7 +216,7 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
                 }`}
               >
                 {/* 星期 */}
-                <span className={`text-[11px] font-semibold ${
+                <span className={`text-[12px] font-semibold ${
                   item.isSelected || item.isToday
                     ? 'text-gray-800'
                     : 'text-gray-400'
@@ -262,7 +263,7 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
           <div
             className="relative flex-1 overflow-hidden rounded-full"
             style={{
-              height: '10px',
+              height: '7px',
               background: '#EEF2F6',
               boxShadow: `
                 inset 0 1px 2px rgba(0, 0, 0, 0.12),
@@ -279,14 +280,13 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
               }}
             />
             <div
-              className="progress-bar-pulse absolute left-[2px] top-1/2 h-[6px] -translate-y-1/2 rounded-full transition-all duration-300"
+              className="progress-bar-pulse absolute inset-y-0 left-0 rounded-full transition-all duration-300"
               style={{
                 width: `${dayProgress.progress}%`,
-                maxWidth: 'calc(100% - 4px)',
-                background: 'linear-gradient(to bottom, #7e8ca0 0%, #6b798e 52%, #5b677c 100%)',
+                background: 'linear-gradient(to bottom, rgba(39,39,41,0.98) 0%, rgba(39,39,41,0.94) 100%)',
                 boxShadow: `
-                  inset 0 -1px 1px rgba(0,0,0,0.12),
-                  0 1px 1px rgba(67, 82, 103, 0.08)
+                  inset 0 -1px 1px rgba(0,0,0,0.16),
+                  0 1px 2px rgba(39,39,41,0.12)
                 `,
               }}
             />

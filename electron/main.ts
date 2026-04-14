@@ -1,10 +1,14 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import path from 'path'
 
-// 禁用 GPU 沙盒，修复 Intel Mac 上的渲染问题
-app.commandLine.appendSwitch('disable-gpu-sandbox')
-// 禁用硬件加速，避免 Intel 芯片的渲染卡顿
-app.disableHardwareAcceleration()
+// Intel Mac 上保留兼容策略；Apple Silicon 默认开启硬件加速避免软件渲染卡顿。
+const isIntelMac = process.platform === 'darwin' && process.arch === 'x64'
+const forceDisableHwAccel = process.env.AHA_DISABLE_HW_ACCEL === '1'
+
+if (isIntelMac || forceDisableHwAccel) {
+  app.commandLine.appendSwitch('disable-gpu-sandbox')
+  app.disableHardwareAcceleration()
+}
 
 // 版本检查器导入
 import { checkForUpdates, getCurrentVersion } from './version-checker'

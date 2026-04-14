@@ -19,10 +19,10 @@ export const SettingsWorkspace: React.FC<SettingsWorkspaceProps> = ({
       <div className="flex flex-1 justify-center overflow-y-auto px-8 py-10">
         <div className="w-full max-w-3xl space-y-6">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-black/28">
+            <p className="text-[12px] font-semibold uppercase tracking-[0.28em] text-black/28">
               Preferences
             </p>
-            <h2 className="mt-3 text-[30px] font-semibold tracking-[-0.035em] text-[#2f3742]">
+            <h2 className="mt-3 text-[28px] font-semibold tracking-[-0.035em] text-[#2f3742]">
               设置
             </h2>
             <p className="mt-3 max-w-2xl text-sm leading-7 text-black/48">

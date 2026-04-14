@@ -22,9 +22,6 @@ const DEFAULT_OPTIONS: SegmentedOption[] = [
 const SYNC_EASE = 'cubic-bezier(0.4, 0, 0.2, 1)'
 const TRANSITION_DURATION = '400ms'
 
-// 烟熏紫灰主题 - 半透明低明度
-const SMOKE_GLOW = 'rgba(74, 78, 105, 0.15)'
-
 export const SegmentedControl: React.FC<SegmentedControlProps> = ({
   options = DEFAULT_OPTIONS,
   defaultValue = 'objectives',
@@ -250,7 +247,7 @@ export const SegmentedControl: React.FC<SegmentedControlProps> = ({
               zIndex: Z_INDEX.marble,
               transition: `left ${TRANSITION_DURATION} ${SYNC_EASE}`,
               willChange: 'left',
-              filter: 'drop-shadow(0 3px 4px rgba(0,0,0,0.2))',
+              filter: 'drop-shadow(0 3px 4px rgba(0,0,0,0.17))',
               boxSizing: 'border-box',
             }}
           >
@@ -263,99 +260,101 @@ export const SegmentedControl: React.FC<SegmentedControlProps> = ({
                 transform: 'translateX(-50%)',
                 width: '12px',
                 height: '4px',
-                background: 'rgba(0, 0, 0, 0.25)',
+                background: 'rgba(0, 0, 0, 0.2)',
                 filter: 'blur(3px)',
                 zIndex: -1,
               }}
             />
 
-            {/* 底层：带纹理的球体背景 - 紫色调滤镜叠加 */}
+            {/* 底层：更清透的玻璃体积层，边缘状态减少珍珠感 */}
             <div
               className="absolute inset-0 rounded-full"
               style={{
                 background: `
-                  radial-gradient(circle at 30% 30%, rgba(148, 163, 184, 0.5) 0%, transparent 50%),
-                  radial-gradient(circle at 70% 70%, rgba(138, 148, 248, 0.4) 0%, transparent 40%),
-                  linear-gradient(135deg, rgba(138, 148, 248, 0.35) 0%, rgba(99, 116, 139, 0.6) 100%)
+                  radial-gradient(circle at 28% 24%, rgba(255, 255, 255, 0.82) 0%, rgba(255,255,255,0.28) 22%, transparent 50%),
+                  radial-gradient(circle at 70% 76%, rgba(182, 196, 214, 0.11) 0%, transparent 38%),
+                  radial-gradient(circle at 46% 50%, rgba(236, 243, 251, 0.32) 0%, rgba(236,243,251,0.12) 48%, transparent 72%),
+                  linear-gradient(145deg, rgba(244, 248, 252, 0.72) 0%, rgba(212, 221, 232, 0.38) 52%, rgba(188, 198, 210, 0.3) 100%)
                 `,
                 transform: `rotate(${rotation}deg)`,
                 transition: `transform ${TRANSITION_DURATION} ${SYNC_EASE}`,
               }}
             />
 
-            {/* 顶层：固定高光层 + 物理轮廓亮线 */}
+            {/* 顶层：轮廓和折射层 */}
             <div
               className="absolute inset-0 rounded-full overflow-hidden"
               style={{
-                backdropFilter: 'blur(2px)',
-                WebkitBackdropFilter: 'blur(2px)',
-                border: '0.5px solid rgba(255, 255, 255, 0.4)',
+                backdropFilter: 'blur(2.4px)',
+                WebkitBackdropFilter: 'blur(2.4px)',
+                border: '0.5px solid rgba(255, 255, 255, 0.56)',
                 boxShadow: `
-                  inset 0 0 0 1px rgba(255, 255, 255, 0.3),
-                  0 1px 6px ${SMOKE_GLOW},
-                  0 2px 8px rgba(0, 0, 0, 0.06)
+                  inset 0 0 0 1px rgba(255, 255, 255, 0.24),
+                  inset 0 -1px 2px rgba(132, 145, 162, 0.12),
+                  0 1px 6px rgba(150, 158, 170, 0.18),
+                  0 2px 8px rgba(0, 0, 0, 0.05)
                 `,
               }}
             >
-              {/* 主高光 - 缩小尺寸 */}
+              {/* 主高光 */}
               <div
                 className="absolute"
                 style={{
                   top: '2px',
-                  left: '50%',
+                  left: '48%',
                   transform: 'translateX(-50%)',
-                  width: '8px',
+                  width: '9px',
                   height: '5px',
-                  background: 'linear-gradient(to bottom, rgba(255,255,255,1) 0%, rgba(255,255,255,0.7) 60%, transparent 100%)',
+                  background: 'linear-gradient(to bottom, rgba(255,255,255,0.98) 0%, rgba(255,255,255,0.78) 62%, transparent 100%)',
                   borderRadius: '50% 50% 50% 50% / 70% 70% 30% 30%',
-                  filter: 'blur(0.3px)',
+                  filter: 'blur(0.2px)',
                 }}
               />
 
-              {/* 次高光点 - 缩小尺寸 */}
+              {/* 次高光点 */}
               <div
                 className="absolute rounded-full"
                 style={{
-                  top: '3px',
+                  top: '4px',
                   left: '5px',
-                  width: '2px',
-                  height: '2px',
-                  background: 'rgba(255, 255, 255, 1)',
-                  filter: 'blur(0.1px)',
+                  width: '2.5px',
+                  height: '2.5px',
+                  background: 'rgba(255, 255, 255, 0.96)',
+                  filter: 'blur(0.15px)',
                 }}
               />
 
-              {/* 底部聚光 - 缩小尺寸 */}
+              {/* 底部内折射 */}
               <div
                 className="absolute"
                 style={{
                   bottom: '2px',
                   left: '50%',
                   transform: 'translateX(-50%)',
-                  width: '10px',
+                  width: '11px',
                   height: '5px',
-                  background: `radial-gradient(ellipse at center bottom, rgba(40,45,60,0.35) 0%, rgba(60,65,85,0.2) 40%, transparent 70%)`,
+                  background: 'radial-gradient(ellipse at center bottom, rgba(154,168,186,0.14) 0%, rgba(216,224,233,0.16) 42%, transparent 72%)',
                   borderRadius: '50%',
                   filter: 'blur(0.5px)',
                 }}
               />
 
-              {/* 内部底端内发光 - 缩小尺寸 */}
+              {/* 中心透亮层 */}
               <div
                 className="absolute"
                 style={{
-                  bottom: '4px',
+                  bottom: '5px',
                   left: '50%',
                   transform: 'translateX(-50%)',
                   width: '8px',
-                  height: '4px',
-                  background: `radial-gradient(ellipse at center, rgba(74,78,105,0.16) 0%, transparent 60)`,
+                  height: '5px',
+                  background: 'radial-gradient(ellipse at center, rgba(244,248,252,0.34) 0%, transparent 66%)',
                   borderRadius: '50%',
                   filter: 'blur(1px)',
                 }}
               />
 
-              {/* 边缘环境光 */}
+              {/* 右侧折射边缘 */}
               <div
                 className="absolute rounded-full"
                 style={{
@@ -363,9 +362,9 @@ export const SegmentedControl: React.FC<SegmentedControlProps> = ({
                   right: '1px',
                   transform: 'translateY(-50%)',
                   width: '2px',
-                  height: '12px',
-                  background: 'linear-gradient(to bottom, transparent 0%, rgba(255,255,255,0.45) 50%, transparent 100%)',
-                  filter: 'blur(0.6px)',
+                  height: '13px',
+                  background: 'linear-gradient(to bottom, transparent 0%, rgba(255,255,255,0.62) 50%, transparent 100%)',
+                  filter: 'blur(0.5px)',
                 }}
               />
 
@@ -376,9 +375,9 @@ export const SegmentedControl: React.FC<SegmentedControlProps> = ({
                   left: '1px',
                   transform: 'translateY(-50%)',
                   width: '2px',
-                  height: '8px',
-                  background: 'linear-gradient(to bottom, transparent 0%, rgba(255,255,255,0.3) 50%, transparent 100%)',
-                  filter: 'blur(0.8px)',
+                  height: '10px',
+                  background: 'linear-gradient(to bottom, transparent 0%, rgba(248,250,255,0.34) 50%, transparent 100%)',
+                  filter: 'blur(0.7px)',
                 }}
               />
             </div>

@@ -79,8 +79,8 @@ const SIDEBAR_ROW_LAYOUT = {
   },
   textClassName: {
     1: 'font-semibold text-[14px] tracking-[-0.01em]',
-    2: 'font-semibold text-[13px]',
-    3: 'font-normal text-[13px]',
+    2: 'font-semibold text-[14px]',
+    3: 'font-normal text-[14px]',
   },
   textColor: {
     1: '#171c24',
@@ -88,8 +88,8 @@ const SIDEBAR_ROW_LAYOUT = {
     3: '#5f6a78',
   },
   objectiveIcon: {
-    filledBackground: '#8E8E93',
-    emptyBackground: '#8E8E93',
+    filledBackground: '#272729',
+    emptyBackground: '#272729',
     iconColor: '#ffffff',
   },
   activeRowBackground: 'rgba(132, 141, 154, 0.14)',
@@ -131,22 +131,79 @@ const SIDEBAR_TREE_LAYOUT = {
   todoStackClass: 'space-y-2',
 } as const
 
-// 颜色配置 - 低饱和不透明底色 + 优雅阴影
-export const COLOR_OPTIONS = [
-  { key: 'none', label: '默认', bgColor: 'transparent', textColor: '#364152', shadow: 'none' },
-  { key: 'red', label: '红', bgColor: '#FF453A', textColor: '#FF453A', shadow: 'none' },
-  { key: 'orange', label: '橙', bgColor: '#FF9F0A', textColor: '#FF9F0A', shadow: 'none' },
-  { key: 'yellow', label: '黄', bgColor: '#FFD60A', textColor: '#FFD60A', shadow: 'none' },
-  { key: 'green', label: '绿', bgColor: '#30D158', textColor: '#30D158', shadow: 'none' },
-  { key: 'sky', label: '浅蓝', bgColor: '#64D2FF', textColor: '#64D2FF', shadow: 'none' },
-  { key: 'blue', label: '蓝', bgColor: '#0A84FF', textColor: '#0A84FF', shadow: 'none' },
-  { key: 'indigo', label: '靛蓝', bgColor: '#5E5CE6', textColor: '#5E5CE6', shadow: 'none' },
-  { key: 'pink', label: '粉', bgColor: '#FF375F', textColor: '#FF375F', shadow: 'none' },
-  { key: 'purple', label: '紫', bgColor: '#BF5AF2', textColor: '#BF5AF2', shadow: 'none' },
-  { key: 'brown', label: '棕', bgColor: '#AC8E68', textColor: '#AC8E68', shadow: 'none' },
-  { key: 'graphite', label: '灰', bgColor: '#636E72', textColor: '#636E72', shadow: 'none' },
-  { key: 'beige', label: '米', bgColor: '#D8A39D', textColor: '#D8A39D', shadow: 'none' },
+interface ColorOption {
+  key: string
+  label: string
+  bgColor: string
+  textColor: string
+  shadow: string
+}
+
+// 目标图标颜色：收敛为 4 个品牌色 + 1 个 Warm Text 灰
+export const COLOR_OPTIONS: ColorOption[] = [
+  { key: 'none', label: '默认', bgColor: 'transparent', textColor: '#272729', shadow: 'none' },
+  { key: 'blue', label: '蓝', bgColor: '#3860BE', textColor: '#3860BE', shadow: 'none' },
+  { key: 'violet', label: '紫', bgColor: '#9B60AA', textColor: '#9B60AA', shadow: 'none' },
+  { key: 'green', label: '绿', bgColor: '#187574', textColor: '#187574', shadow: 'none' },
+  { key: 'terracotta', label: '橙', bgColor: '#C96442', textColor: '#C96442', shadow: 'none' },
+  { key: 'warm-gray', label: '暖灰', bgColor: '#272729', textColor: '#272729', shadow: 'none' },
 ]
+
+const COLOR_OPTION_BY_KEY = new Map(COLOR_OPTIONS.map((option) => [option.key, option] as const))
+
+const LEGACY_COLOR_KEY_MAP: Record<string, string> = {
+  red: 'terracotta',
+  orange: 'terracotta',
+  yellow: 'green',
+  amber: 'green',
+  green: 'green',
+  sky: 'blue',
+  indigo: 'blue',
+  pink: 'violet',
+  purple: 'violet',
+  brown: 'terracotta',
+  graphite: 'warm-gray',
+  beige: 'warm-gray',
+}
+
+const LEGACY_COLOR_HEX_MAP: Record<string, string> = {
+  '#007aff': 'blue',
+  '#0a84ff': 'blue',
+  '#5e5ce6': 'blue',
+  '#64d2ff': 'blue',
+  '#30d158': 'green',
+  '#ff375f': 'violet',
+  '#bf5af2': 'violet',
+  '#ffd60a': 'green',
+  '#ff9f0a': 'terracotta',
+  '#ff453a': 'terracotta',
+  '#ac8e68': 'terracotta',
+  '#d8a39d': 'warm-gray',
+  '#636e72': 'warm-gray',
+  '#3860be': 'blue',
+  '#9b60aa': 'violet',
+  '#fbbd41': 'green',
+  '#187574': 'green',
+  '#c96442': 'terracotta',
+  '#777169': 'warm-gray',
+  '#272729': 'warm-gray',
+}
+
+export function normalizeObjectiveColorKey(colorKey?: string | null): string | null {
+  if (!colorKey) return null
+  const token = colorKey.trim().toLowerCase()
+  if (!token || token === 'none') return null
+  if (COLOR_OPTION_BY_KEY.has(token)) return token
+  if (LEGACY_COLOR_KEY_MAP[token]) return LEGACY_COLOR_KEY_MAP[token]
+  if (LEGACY_COLOR_HEX_MAP[token]) return LEGACY_COLOR_HEX_MAP[token]
+  return null
+}
+
+export function getObjectiveColorOption(colorKey?: string | null): ColorOption | null {
+  const normalizedKey = normalizeObjectiveColorKey(colorKey)
+  if (!normalizedKey) return null
+  return COLOR_OPTION_BY_KEY.get(normalizedKey) || null
+}
 
 interface SidebarProps {
   activeObjective?: string
@@ -158,10 +215,9 @@ interface SidebarProps {
   refreshTrigger?: number
   shouldScrollToActive?: boolean // 是否自动滚动到选中项（中间面板触发时为 true）
   sliderStyle?: 'bead' | 'pill'
-  onOpenWorkspaceThemeMenu?: (position: { x: number; y: number }) => void
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ activeObjective: externalActiveObjective, onSetActive, onAddToDailyTasks, onToggleObjectiveBoardMode, onOkrItemsChanged, okrViewMode = 'daily', refreshTrigger, shouldScrollToActive = false, sliderStyle = 'bead', onOpenWorkspaceThemeMenu }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ activeObjective: externalActiveObjective, onSetActive, onAddToDailyTasks, onToggleObjectiveBoardMode, onOkrItemsChanged, okrViewMode = 'daily', refreshTrigger, shouldScrollToActive = false, sliderStyle = 'bead' }) => {
   const [internalActiveObjective, setInternalActiveObjective] = useState<string>('obj-1')
   const [activeSortId, setActiveSortId] = useState<string | null>(null)
   const [overSortId, setOverSortId] = useState<string | null>(null)
@@ -372,7 +428,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeObjective: externalActiv
   // 处理更新颜色
   const handleUpdateColor = async (dbId: string, colorKey: string) => {
     console.log("[DIAG] Color Change Triggered for item:", dbId, "color:", colorKey)
-    const colorOption = COLOR_OPTIONS.find(c => c.key === colorKey)
+    const colorOption = COLOR_OPTION_BY_KEY.get(colorKey)
     if (!colorOption) return
 
     try {
@@ -409,12 +465,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeObjective: externalActiv
     }
   }
 
-  const handleSidebarContextMenu = (e: React.MouseEvent) => {
-    if (!onOpenWorkspaceThemeMenu) return
-    e.preventDefault()
-    onOpenWorkspaceThemeMenu({ x: e.clientX, y: e.clientY })
-  }
-
   const handleToggleBoardMode = () => {
     if (okrViewMode === 'objective-board') {
       onToggleObjectiveBoardMode?.()
@@ -435,10 +485,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeObjective: externalActiv
 
   return (
     <aside
-      onContextMenu={handleSidebarContextMenu}
       className="w-full h-full flex flex-col transition-all duration-300"
       style={{
-        background: 'transparent',
+        background: '#f5f5f7',
         color: themeConfig.textColor,
         backdropFilter: 'none',
         WebkitBackdropFilter: 'none',
@@ -467,7 +516,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeObjective: externalActiv
         <div className="mt-2">
           <div className="flex items-center justify-between pl-3 pr-0 py-2">
             <div
-              className="text-[11px] font-semibold tracking-[0.16em]"
+              className="text-[12px] font-semibold tracking-[0.16em]"
               style={{
                 color: themeConfig.isDark ? 'rgba(255,255,255,0.5)' : 'rgba(74, 78, 105, 0.54)',
               }}
@@ -827,7 +876,7 @@ const ObjectiveItem: React.FC<ObjectiveItemProps> = ({
     if (onAddToDailyTasks && item.iconType === 'todo') {
       // 获取颜色：优先使用 TODO 自己的颜色，否则使用父级 Objective 的颜色
       const colorKey = item.color || parentObjectiveColor
-      const colorOption = colorKey ? COLOR_OPTIONS.find(c => c.key === colorKey) : null
+      const colorOption = getObjectiveColorOption(colorKey)
       const effectiveColor = colorOption?.textColor || null
 
       onAddToDailyTasks({
@@ -858,8 +907,9 @@ const ObjectiveItem: React.FC<ObjectiveItemProps> = ({
     marginLeft: `${SIDEBAR_ROW_LAYOUT.containerMarginLeft[item.level]}px`,
     paddingLeft: `${levelPaddingLeft}px`,
   }
-  const objectiveColorOption = isObjective && item.color
-    ? COLOR_OPTIONS.find((colorOption) => colorOption.key === item.color)
+  const normalizedObjectiveColorKey = normalizeObjectiveColorKey(item.color)
+  const objectiveColorOption = isObjective && normalizedObjectiveColorKey
+    ? COLOR_OPTION_BY_KEY.get(normalizedObjectiveColorKey)
     : null
   const objectiveIconTone = {
     backgroundColor: objectiveColorOption && objectiveColorOption.bgColor !== 'transparent'
@@ -873,14 +923,14 @@ const ObjectiveItem: React.FC<ObjectiveItemProps> = ({
   const countdownLabel = formatCountdownLabel(item.objectiveDeadlineAt)
   const countdownLabelLength = countdownLabel?.length ?? 0
   const countdownTextClassName = countdownLabelLength >= 4
-    ? 'text-[9px]'
+    ? 'text-[12px]'
     : countdownLabelLength === 3
-      ? 'text-[10px]'
+      ? 'text-[12px]'
       : 'text-[12px]'
   const isCountdownSelectionInvalid = Boolean(countdownDate) && isCountdownDateTooFar(countdownDate)
   const renderObjectiveIconContent = () => {
     if (objectiveIconMode === 'emoji' && item.objectiveIconEmoji) {
-      return <span className="text-[13px] leading-none">{item.objectiveIconEmoji}</span>
+      return <span className="text-[14px] leading-none">{item.objectiveIconEmoji}</span>
     }
     if (objectiveIconMode === 'countdown' && countdownLabel) {
       return (
@@ -1090,7 +1140,7 @@ const ObjectiveItem: React.FC<ObjectiveItemProps> = ({
       // 使用父级 Objective 的颜色（如果 TODO 本身没有颜色）
       const colorKey = item.color || parentObjectiveColor
       // 将颜色 key 转换为实际的颜色值
-      const colorOption = colorKey ? COLOR_OPTIONS.find(c => c.key === colorKey) : null
+      const colorOption = getObjectiveColorOption(colorKey)
       const effectiveColor = colorOption?.textColor || null
       const todoContent = isDraggableTodo ? (
         <DraggableTodoItem id={item.dbId} title={item.label} color={effectiveColor}>
@@ -1149,7 +1199,7 @@ const ObjectiveItem: React.FC<ObjectiveItemProps> = ({
                           handleCloseContextMenu()
                         }}
                         className={`w-6 h-6 rounded-full border-2 transition-all ${
-                          item.color === color.key || (!item.color && color.key === 'none')
+                          (normalizedObjectiveColorKey ?? 'none') === color.key
                             ? 'border-gray-400 scale-110'
                             : 'border-transparent hover:border-gray-300'
                         }`}
@@ -1256,7 +1306,7 @@ const ObjectiveItem: React.FC<ObjectiveItemProps> = ({
                           countdownError ? 'border-red-300 text-red-600' : 'border-gray-200'
                         }`}
                       />
-                      <div className={`mt-1 text-[11px] ${countdownError ? 'text-red-500' : 'text-gray-400'}`}>
+                      <div className={`mt-1 text-[12px] ${countdownError ? 'text-red-500' : 'text-gray-400'}`}>
                         {countdownError || `最多支持 ${MAX_COUNTDOWN_DAYS} 天，超过后无法保存`}
                       </div>
                       <div className="mt-2 flex gap-2">

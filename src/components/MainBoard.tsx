@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useDndMonitor } from '@dnd-kit/core'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -8,8 +9,8 @@ import { TaskInput } from './daily/TaskInput'
 import { TaskChatComposer } from './daily/TaskChatComposer'
 import { TaskItem } from './daily/TaskItem'
 import { DroppableMainBoard } from './dnd/DroppableMainBoard'
-import { COLOR_OPTIONS } from './Sidebar'
-import { Check, ChevronDown } from 'lucide-react'
+import { getObjectiveColorOption } from './Sidebar'
+import { Check, ChevronDown, Triangle } from 'lucide-react'
 import type { DailyTask, Item } from '../store/index'
 
 interface MainBoardProps {
@@ -23,6 +24,7 @@ interface MainBoardProps {
   onMoveTaskToToday?: (id: string) => void
   onSetActiveObjective?: (itemId: string, shouldScroll?: boolean) => void
   highlightedTaskId?: string | null
+  relationHighlightedTaskId?: string | null
   highlightedSourceItemIds?: string[]
   isPastDate?: boolean
   onReorderTasks?: (orderedTaskIds: string[]) => void | Promise<void>
@@ -34,6 +36,7 @@ interface MainBoardProps {
   className?: string
   taskComposerMode?: 'inline' | 'chat-bottom'
   enableHeaderDragRegion?: boolean
+  glassMode?: boolean
 }
 
 export const MainBoard: React.FC<MainBoardProps> = ({
@@ -47,6 +50,7 @@ export const MainBoard: React.FC<MainBoardProps> = ({
   onMoveTaskToToday,
   onSetActiveObjective,
   highlightedTaskId,
+  relationHighlightedTaskId,
   highlightedSourceItemIds,
   isPastDate,
   onReorderTasks,
@@ -58,6 +62,7 @@ export const MainBoard: React.FC<MainBoardProps> = ({
   className = '',
   taskComposerMode = 'inline',
   enableHeaderDragRegion = true,
+  glassMode = false,
 }) => {
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false)
   const [items, setItems] = useState<Item[]>([])
@@ -168,7 +173,7 @@ export const MainBoard: React.FC<MainBoardProps> = ({
     // 辅助函数：获取颜色 key 对应的实际颜色值
     const getColorValue = (colorKey: string | null | undefined): string | null => {
       if (!colorKey) return null
-      const colorOption = COLOR_OPTIONS.find(c => c.key === colorKey)
+      const colorOption = getObjectiveColorOption(colorKey)
       return colorOption?.textColor || null
     }
 
@@ -301,8 +306,22 @@ export const MainBoard: React.FC<MainBoardProps> = ({
   const handleTaskClick = (task: DailyTask) => {
     setSelectedTaskId(task.id)
     onSelectionTitleChange?.({ id: task.id, title: task.content })
-    if ((task.sourceItemId ?? task.linkedGoalId) && onSetActiveObjective) {
-      onSetActiveObjective(task.sourceItemId ?? task.linkedGoalId!, true) // true 表示需要滚动
+    if (!onSetActiveObjective) return
+
+    // 优先使用已建立的关联 ID；如果是手动任务没有关联，则按标题匹配现有 TODO 做联动
+    let targetItemId = task.sourceItemId ?? task.linkedGoalId ?? null
+    if (!targetItemId) {
+      const normalizedContent = task.content.trim()
+      if (normalizedContent) {
+        const matchedTodo = items.find(
+          (item) => item.type === 'TODO' && item.title.trim() === normalizedContent
+        )
+        targetItemId = matchedTodo?.id ?? null
+      }
+    }
+
+    if (targetItemId) {
+      onSetActiveObjective(targetItemId, true) // true 表示需要滚动
     }
   }
 
@@ -396,7 +415,7 @@ export const MainBoard: React.FC<MainBoardProps> = ({
   })
 
   return (
-    <DroppableMainBoard dropZoneId={dropZoneId} className={className}>
+    <DroppableMainBoard dropZoneId={dropZoneId} className={className} glassMode={glassMode}>
       {/* 日历 Header */}
       <CalendarHeader
         selectedDate={selectedDate}
@@ -418,7 +437,7 @@ export const MainBoard: React.FC<MainBoardProps> = ({
       {/* 错误提示 */}
       {errorMessage && (
         <div className="mx-4 mt-2 px-4 py-2 bg-red-50 border border-red-200 rounded-lg">
-          <p className="text-[13px] text-red-600">{errorMessage}</p>
+          <p className="text-[14px] text-red-600">{errorMessage}</p>
         </div>
       )}
 
@@ -477,6 +496,7 @@ export const MainBoard: React.FC<MainBoardProps> = ({
                     onMoveToToday={onMoveTaskToToday}
                     onClick={() => handleTaskClick(taskWithColor)}
                     isHighlighted={highlightedTaskId === task.id}
+                    isRelationHighlighted={relationHighlightedTaskId === task.id}
                     highlightedSourceItemIds={highlightedSourceItemIds}
                     isSelected={selectedTaskId === task.id}
                     isPastDate={isPastDate}
@@ -487,6 +507,7 @@ export const MainBoard: React.FC<MainBoardProps> = ({
                     collapsedExecutionKrIds={collapsedExecutionKrIds}
                     onToggleExecutionKrCollapsed={toggleExecutionKrCollapsed}
                     dndScope={dndScope}
+                    preferDeleteFirst={useChatBottomComposer}
                   />
                 )
               }
@@ -517,7 +538,7 @@ export const MainBoard: React.FC<MainBoardProps> = ({
       </div>
 
       {useChatBottomComposer ? (
-        <div className="border-t border-black/[0.06] bg-white px-4 py-3">
+        <div className={`${glassMode ? 'border-t border-white/55 bg-white/56 backdrop-blur-[12px]' : 'border-t border-black/[0.08] bg-white/58 backdrop-blur-[10px]'} p-4`}>
           <TaskChatComposer onSubmit={handleCreateTask} disabled={isLoading} />
         </div>
       ) : null}
@@ -544,6 +565,7 @@ const ExecutionEntry: React.FC<{
   onMoveToToday?: (id: string) => void
   onClick?: () => void
   isHighlighted?: boolean
+  isRelationHighlighted?: boolean
   highlightedSourceItemIds?: string[]
   isSelected?: boolean
   isPastDate?: boolean
@@ -554,6 +576,7 @@ const ExecutionEntry: React.FC<{
   collapsedExecutionKrIds: Set<string>
   onToggleExecutionKrCollapsed: (itemId: string) => void
   dndScope?: string
+  preferDeleteFirst?: boolean
 }> = ({
   task,
   linkedItemTitle,
@@ -571,6 +594,7 @@ const ExecutionEntry: React.FC<{
   onMoveToToday,
   onClick,
   isHighlighted,
+  isRelationHighlighted,
   highlightedSourceItemIds = [],
   isSelected,
   isPastDate,
@@ -581,6 +605,7 @@ const ExecutionEntry: React.FC<{
   collapsedExecutionKrIds,
   onToggleExecutionKrCollapsed,
   dndScope = 'main',
+  preferDeleteFirst = false,
 }) => {
   const entryType = task.entryType ?? 'manual'
   const isManual = entryType === 'manual'
@@ -609,6 +634,7 @@ const ExecutionEntry: React.FC<{
         activeChildSortId={activeChildSortId}
         laneMode={laneMode}
         dndScope={dndScope}
+        preferDeleteFirst={preferDeleteFirst}
       />
     )
   }
@@ -636,6 +662,7 @@ const ExecutionEntry: React.FC<{
         isCollapsed={collapsedExecutionKrIds.has(sourceItem.id)}
         onToggleCollapsed={() => onToggleExecutionKrCollapsed(sourceItem.id)}
         dndScope={dndScope}
+        preferDeleteFirst={preferDeleteFirst}
       />
     )
   }
@@ -650,11 +677,13 @@ const ExecutionEntry: React.FC<{
       linkedItemTitle={isManual ? null : linkedItemTitle}
       onClick={onClick}
       isHighlighted={isHighlighted}
+      isRelationHighlighted={isRelationHighlighted}
       isSelected={isSelected}
       isLinked={!isManual}
       isPastDate={isPastDate}
       isSorting={isSorting}
       showSortInsertion={showSortInsertion}
+      preferDeleteFirst={preferDeleteFirst}
     />
   )
 }
@@ -680,6 +709,7 @@ const ObjectiveExecutionSection: React.FC<{
   activeChildSortId?: string | null
   laneMode?: boolean
   dndScope?: string
+  preferDeleteFirst?: boolean
 }> = ({
   task,
   sourceItem,
@@ -701,6 +731,7 @@ const ObjectiveExecutionSection: React.FC<{
   activeChildSortId,
   laneMode = false,
   dndScope = 'main',
+  preferDeleteFirst = false,
 }) => {
   void onCreateExecutionChild
   void onDeleteTask
@@ -731,7 +762,7 @@ const ObjectiveExecutionSection: React.FC<{
       >
         <div className="mb-2 flex items-center gap-2 px-6">
           <ChevronDown className="h-4 w-4 flex-shrink-0 text-[#7f8896]" strokeWidth={2.2} />
-          <div className={`truncate text-[15px] font-semibold text-[#4d5767] ${task.isDone ? 'line-through opacity-55' : ''}`}>
+          <div className={`truncate text-[14px] font-semibold text-[#4d5767] ${task.isDone ? 'line-through opacity-55' : ''}`}>
             {sourceItem.title || task.content || '未命名目标'}
           </div>
         </div>
@@ -777,23 +808,43 @@ const ObjectiveExecutionSection: React.FC<{
       <ExecutionContextMenu
         open={open}
         position={position}
-        actions={[
-          {
-            label: '新增关键结果',
-            onSelect: () => {
-              closeMenu()
-              void onCreateExecutionChild(sourceItem)
-            },
-          },
-          {
-            label: '从执行区移除',
-            danger: true,
-            onSelect: () => {
-              closeMenu()
-              onDeleteTask(task.id)
-            },
-          },
-        ]}
+        actions={
+          preferDeleteFirst
+            ? [
+                {
+                  label: '从执行区移除',
+                  danger: true,
+                  onSelect: () => {
+                    closeMenu()
+                    onDeleteTask(task.id)
+                  },
+                },
+                {
+                  label: '新增关键结果',
+                  onSelect: () => {
+                    closeMenu()
+                    void onCreateExecutionChild(sourceItem)
+                  },
+                },
+              ]
+            : [
+                {
+                  label: '新增关键结果',
+                  onSelect: () => {
+                    closeMenu()
+                    void onCreateExecutionChild(sourceItem)
+                  },
+                },
+                {
+                  label: '从执行区移除',
+                  danger: true,
+                  onSelect: () => {
+                    closeMenu()
+                    onDeleteTask(task.id)
+                  },
+                },
+              ]
+        }
       />
     </div>
   )
@@ -822,6 +873,7 @@ const KRExecutionColumn: React.FC<{
   isCollapsed?: boolean
   onToggleCollapsed?: () => void
   dndScope?: string
+  preferDeleteFirst?: boolean
 }> = ({
   task,
   item,
@@ -841,10 +893,10 @@ const KRExecutionColumn: React.FC<{
   activeChildSortId,
   isChildColumn = false,
   isRowHighlighted = false,
-  isSelected = false,
   isCollapsed = false,
   onToggleCollapsed,
   dndScope = 'main',
+  preferDeleteFirst = false,
 }) => {
   void onCreateExecutionChild
   void onDeleteTask
@@ -856,7 +908,7 @@ const KRExecutionColumn: React.FC<{
       onClick={onClick}
       onContextMenu={handleContextMenu}
       className={`
-        group relative mx-6 mb-1.5 rounded-[14px] transition-all duration-300
+        group relative mx-2 mb-1.5 rounded-[14px] transition-all duration-300
         ${isCollapsed ? 'py-0' : 'py-2'}
         ${isRowHighlighted ? 'bg-[#f8f5ff]' : 'hover:bg-[#f3f5f7]'}
         ${isHighlighted ? 'animate-pulse-highlight' : ''}
@@ -867,25 +919,6 @@ const KRExecutionColumn: React.FC<{
           : 'none',
       }}
     >
-      {(isCollapsed || isSelected || true) && (
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation()
-            onToggleCollapsed?.()
-          }}
-          className={`absolute right-4 z-20 flex h-7 w-7 items-center justify-center rounded-full text-[#8a93a0] transition-all duration-200 hover:bg-black/[0.04] hover:text-[#5c6572] ${
-            isCollapsed ? 'top-1/2 -translate-y-1/2' : 'top-3'
-          } ${isCollapsed ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
-          aria-label={isCollapsed ? '展开关键结果' : '收起关键结果'}
-        >
-          <ChevronDown
-            className={`h-4 w-4 transition-transform duration-200 ${isCollapsed ? '-rotate-90' : 'rotate-0'}`}
-            strokeWidth={2.2}
-          />
-        </button>
-      )}
-
       {showSortInsertion && (
         <div className="pointer-events-none absolute left-4 right-4 top-0 z-20 -translate-y-1/2">
           <div className="relative flex items-center">
@@ -897,22 +930,24 @@ const KRExecutionColumn: React.FC<{
       )}
 
       <div
-        className={`flex gap-3 rounded-[10px] px-6 transition-colors duration-200 bg-transparent ${
-          isCollapsed ? 'mb-0 items-center py-3.5 pr-16' : 'mb-1.5 items-start py-1'
+        className={`flex gap-3 rounded-[10px] px-3 transition-colors duration-200 bg-transparent ${
+          isCollapsed ? 'mb-0 items-center py-3.5 pr-14' : 'mb-1.5 items-start py-1'
         }`}
       >
         <button
           type="button"
           onClick={(event) => {
             event.stopPropagation()
-            void onToggleExecutionItemStatus(item)
+            onToggleCollapsed?.()
           }}
-          className={`flex h-5 w-5 flex-shrink-0 items-center justify-center ${isCollapsed ? '' : 'mt-[1px]'}`}
+          className={`flex h-5 w-5 flex-shrink-0 items-center justify-center transition-colors ${isCollapsed ? '' : 'mt-[1px]'}`}
+          style={{ color: task.color || '#8a93a0' }}
+          aria-label={isCollapsed ? '展开关键结果' : '收起关键结果'}
         >
-          <CircleCheck
-            done={item.status === 1}
-            color={task.color}
-            size="md"
+          <Triangle
+            className={`h-3.5 w-3.5 transition-transform duration-200 ${isCollapsed ? 'rotate-90' : 'rotate-180'}`}
+            fill="currentColor"
+            strokeWidth={0}
           />
         </button>
 
@@ -926,7 +961,7 @@ const KRExecutionColumn: React.FC<{
               isDone={item.status === 1}
             />
           ) : (
-            <div className={`truncate pt-[1px] text-[15px] font-medium ${task.isDone ? 'text-gray-400 line-through' : 'text-[#4d5767]'}`}>
+            <div className={`truncate pt-[1px] text-[14px] font-medium ${task.isDone ? 'text-gray-400 line-through' : 'text-[#4d5767]'}`}>
               {task.content}
             </div>
           )}
@@ -967,34 +1002,61 @@ const KRExecutionColumn: React.FC<{
       <ExecutionContextMenu
         open={open}
         position={position}
-        actions={[
-          {
-            label: '编辑',
-            onSelect: () => {
-              closeMenu()
-              setEditingSourceItemId(item.id)
-            },
-          },
-          {
-            label: '新增待办',
-            onSelect: () => {
-              closeMenu()
-              void onCreateExecutionChild(item)
-            },
-          },
-          {
-            label: isChildColumn ? '删除关键结果' : '从执行区移除',
-            danger: true,
-            onSelect: () => {
-              closeMenu()
-              if (isChildColumn) {
-                void onDeleteExecutionItem(item.id)
-              } else {
-                onDeleteTask(task.id)
-              }
-            },
-          },
-        ]}
+        actions={
+          preferDeleteFirst && !isChildColumn
+            ? [
+                {
+                  label: '从执行区移除',
+                  danger: true,
+                  onSelect: () => {
+                    closeMenu()
+                    onDeleteTask(task.id)
+                  },
+                },
+                {
+                  label: '编辑',
+                  onSelect: () => {
+                    closeMenu()
+                    setEditingSourceItemId(item.id)
+                  },
+                },
+                {
+                  label: '新增待办',
+                  onSelect: () => {
+                    closeMenu()
+                    void onCreateExecutionChild(item)
+                  },
+                },
+              ]
+            : [
+                {
+                  label: '编辑',
+                  onSelect: () => {
+                    closeMenu()
+                    setEditingSourceItemId(item.id)
+                  },
+                },
+                {
+                  label: '新增待办',
+                  onSelect: () => {
+                    closeMenu()
+                    void onCreateExecutionChild(item)
+                  },
+                },
+                {
+                  label: isChildColumn ? '删除关键结果' : '从执行区移除',
+                  danger: true,
+                  onSelect: () => {
+                    closeMenu()
+                    if (isChildColumn) {
+                      void onDeleteExecutionItem(item.id)
+                    } else {
+                      onDeleteTask(task.id)
+                    }
+                  },
+                },
+              ]
+        }
       />
     </div>
   )
@@ -1041,7 +1103,7 @@ const EditableExecutionTitle: React.FC<{
             setValue(item.title)
           }
         }}
-        className="w-full bg-transparent text-[15px] font-semibold text-[#4d5767] outline-none"
+        className="w-full bg-transparent text-[14px] font-semibold text-[#4d5767] outline-none"
         placeholder="输入关键结果"
       />
     )
@@ -1053,7 +1115,7 @@ const EditableExecutionTitle: React.FC<{
         event.stopPropagation()
         onStartEdit()
       }}
-      className={`truncate text-[15px] font-semibold text-[#4d5767] ${isDone ? 'line-through opacity-55' : ''}`}
+      className={`truncate text-[14px] font-semibold text-[#4d5767] ${isDone ? 'line-through opacity-55' : ''}`}
     >
       {item.title || '未命名'}
     </div>
@@ -1133,9 +1195,9 @@ const ExecutionContextMenu: React.FC<{
 }> = ({ open, position, actions }) => {
   if (!open || actions.length === 0) return null
 
-  return (
+  return createPortal((
     <div
-      className="fixed z-[140] min-w-[160px] rounded-xl border border-black/[0.08] bg-white/96 py-1 shadow-[0_16px_36px_rgba(15,23,42,0.16)] backdrop-blur-xl"
+      className="fixed z-[280] min-w-[160px] rounded-xl border border-black/[0.08] bg-white/96 py-1 shadow-[0_16px_36px_rgba(15,23,42,0.16)] backdrop-blur-xl"
       style={{ left: position.x, top: position.y }}
       onClick={(event) => event.stopPropagation()}
     >
@@ -1144,7 +1206,7 @@ const ExecutionContextMenu: React.FC<{
           key={action.label}
           type="button"
           onClick={() => action.onSelect()}
-          className={`flex w-full items-center px-4 py-2 text-left text-[13px] transition-colors ${
+          className={`flex w-full items-center px-4 py-2 text-left text-[14px] transition-colors ${
             action.danger
               ? 'text-[#c84b4b] hover:bg-red-50'
               : 'text-[#4c5461] hover:bg-black/[0.04]'
@@ -1154,7 +1216,7 @@ const ExecutionContextMenu: React.FC<{
         </button>
       ))}
     </div>
-  )
+  ), document.body)
 }
 
 const EditableExecutionRow: React.FC<{
@@ -1231,7 +1293,7 @@ const EditableExecutionRow: React.FC<{
           done={item.status === 1}
           color={color}
           size={item.type === 'TODO' ? 'sm' : 'md'}
-          shape={item.type === 'TODO' ? 'square' : 'circle'}
+          shape="circle"
         />
       </button>
 
@@ -1259,7 +1321,7 @@ const EditableExecutionRow: React.FC<{
           </div>
         )}
         {subtitle && !isEditing && (
-          <div className="mt-0.5 text-[11px] text-[#8a919c]">{subtitle}</div>
+          <div className="mt-0.5 text-[12px] text-[#8a919c]">{subtitle}</div>
         )}
       </div>
 

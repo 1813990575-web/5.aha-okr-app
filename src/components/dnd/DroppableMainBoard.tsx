@@ -7,12 +7,14 @@ interface DroppableMainBoardProps {
   isOver?: boolean
   dropZoneId?: string
   className?: string
+  glassMode?: boolean
 }
 
 export const DroppableMainBoard: React.FC<DroppableMainBoardProps> = ({
   children,
   dropZoneId = 'main-board-drop-zone',
   className = '',
+  glassMode = false,
 }) => {
   const { activeItem } = useDragContext()
   const { over } = useDndContext()
@@ -36,10 +38,14 @@ export const DroppableMainBoard: React.FC<DroppableMainBoardProps> = ({
       ref={setNodeRef}
       className={`
         flex-1 h-full flex flex-col overflow-hidden relative
-        bg-white transition-colors duration-200
+        transition-colors duration-200
+        ${glassMode ? 'bg-transparent' : 'bg-white'}
         ${shouldShowDropHint ? 'bg-blue-50/50' : ''}
         ${className}
       `}
+      style={glassMode ? {
+        background: 'linear-gradient(180deg, rgba(255,255,255,0.78), rgba(255,255,255,0.72))',
+      } : undefined}
     >
       {/* 拖放提示遮罩 */}
       {shouldShowDropHint && (

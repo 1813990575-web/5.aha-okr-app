@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { Check, Trash2, CalendarArrowDown } from 'lucide-react'
 import type { DailyTask } from '../../store/index'
 import { DAILY_TASK_ROW_BASE_CLASS } from './taskRowStyles'
@@ -12,11 +13,13 @@ interface TaskItemProps {
   linkedItemTitle?: string | null
   onClick?: () => void
   isHighlighted?: boolean
+  isRelationHighlighted?: boolean
   isSelected?: boolean
   isLinked?: boolean
   isPastDate?: boolean
   isSorting?: boolean
   showSortInsertion?: boolean
+  preferDeleteFirst?: boolean
 }
 
 export const TaskItem: React.FC<TaskItemProps> = ({
@@ -27,17 +30,20 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   onMoveToToday,
   onClick,
   isHighlighted,
+  isRelationHighlighted = false,
   isSelected,
   isLinked,
   isPastDate,
   isSorting = false,
   showSortInsertion = false,
+  preferDeleteFirst = false,
 }) => {
   // 判断是否为 OKR 派生项
   const isOkrDerived = (task.entryType ?? (task.linkedGoalId ? 'todo' : 'manual')) !== 'manual'
+  const deleteLabel = isLinked ? '从执行区移除' : '删除'
 
   // 获取主题色
-  const themeColor = task.color || (isOkrDerived ? '#007AFF' : null)
+  const themeColor = task.color || (isOkrDerived ? '#3860BE' : null)
 
   // 右键菜单状态
   const [showContextMenu, setShowContextMenu] = useState(false)
@@ -138,8 +144,10 @@ export const TaskItem: React.FC<TaskItemProps> = ({
         className={`
           ${DAILY_TASK_ROW_BASE_CLASS} cursor-pointer
           ${task.isDone ? 'opacity-50' : ''}
-          ${isHighlighted ? 'bg-blue-50/80 animate-pulse-highlight border-blue-100' : ''}
-          ${isSelected ? 'bg-[#f3f5f7] border-[#e4e7eb]' : 'hover:bg-[#f7f8fa]'}
+          ${isRelationHighlighted ? 'objective-board-linked-pulse border border-dashed border-[rgba(246,70,93,0.34)] bg-[rgba(246,70,93,0.05)]' : ''}
+          ${!isRelationHighlighted && isHighlighted ? 'bg-blue-50/80 animate-pulse-highlight border-blue-100' : ''}
+          ${!isRelationHighlighted && isSelected ? 'bg-[#f3f5f7] border-[#e4e7eb]' : ''}
+          ${!isRelationHighlighted && !isSelected ? 'hover:bg-[#f7f8fa]' : ''}
         `}
         style={{
           boxShadow: isSorting ? 'inset 0 0 0 1px rgba(125,108,242,0.1)' : undefined,
@@ -209,14 +217,24 @@ export const TaskItem: React.FC<TaskItemProps> = ({
             </p>
           )}
         </div>
+
       </div>
 
       {/* 右键菜单 */}
-      {showContextMenu && (
+      {showContextMenu && typeof document !== 'undefined' && createPortal((
         <div
-          className="fixed z-50 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 min-w-[140px]"
+          className="fixed z-[280] bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 min-w-[140px]"
           style={{ left: contextMenuPos.x, top: contextMenuPos.y }}
         >
+          {preferDeleteFirst && (
+            <button
+              onClick={handleDelete}
+              className="w-full px-4 py-2 text-left text-sm hover:bg-red-50 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 flex items-center gap-2"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>{deleteLabel}</span>
+            </button>
+          )}
           {/* 过去的日期显示"移至今日" */}
           {isPastDate && onMoveToToday && (
             <button
@@ -227,15 +245,17 @@ export const TaskItem: React.FC<TaskItemProps> = ({
               <span>移至今日</span>
             </button>
           )}
-          <button
-            onClick={handleDelete}
-            className="w-full px-4 py-2 text-left text-sm hover:bg-red-50 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 flex items-center gap-2"
-          >
-            <Trash2 className="w-4 h-4" />
-            <span>删除</span>
-          </button>
+          {!preferDeleteFirst && (
+            <button
+              onClick={handleDelete}
+              className="w-full px-4 py-2 text-left text-sm hover:bg-red-50 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 flex items-center gap-2"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>{deleteLabel}</span>
+            </button>
+          )}
         </div>
-      )}
+      ), document.body)}
     </>
   )
 }

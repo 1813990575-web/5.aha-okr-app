@@ -9,8 +9,8 @@ import type { DailyTask } from '../../store/index'
 const EmptyObjectiveBoardState: React.FC = () => (
   <div className="flex h-full w-full items-center justify-center bg-[linear-gradient(180deg,#ffffff,#f7f8fa)] px-6">
     <div className="max-w-md rounded-[28px] border border-black/[0.06] bg-white/88 px-8 py-10 text-center shadow-[0_24px_60px_rgba(15,23,42,0.08)] backdrop-blur-xl">
-      <div className="text-[22px] font-semibold tracking-[-0.03em] text-[#232834]">还没有可展示的分栏目标</div>
-      <p className="mt-3 text-[14px] leading-7 text-[#67707d]">
+      <div className="typo-card-title-bold tracking-[-0.02em] text-[#232834]">还没有可展示的分栏目标</div>
+      <p className="typo-link mt-3 text-[#67707d]">
         先在左侧创建一个 Objective，或选择一个现有目标，再点击右上角的分栏图标进入梳理页面。
       </p>
     </div>
@@ -23,7 +23,6 @@ interface OkrWorkspaceProps {
   shouldScrollToActive: boolean
   sidebarRefreshTrigger: number
   sliderStyle: 'bead' | 'pill'
-  workspaceBackground: string
   tasks: DailyTask[]
   selectedDate: Date
   highlightedTaskId: string | null
@@ -34,7 +33,6 @@ interface OkrWorkspaceProps {
   onAddToDailyTasks: (item: { id: string; title: string; color?: string | null; type?: 'O' | 'KR' | 'TODO' }) => void | Promise<void>
   onToggleObjectiveBoardMode: (objective?: { id: string; title: string; color?: string | null }) => void
   onOkrItemsChanged: () => void | Promise<void>
-  onOpenWorkspaceThemeMenu: React.Dispatch<React.SetStateAction<{ x: number; y: number } | null>>
   onDateChange: (date: Date) => void
   onCreateTask: (content: string) => void | Promise<void>
   onToggleTask: (id: string) => void | Promise<void>
@@ -54,7 +52,6 @@ export const OkrWorkspace: React.FC<OkrWorkspaceProps> = ({
   shouldScrollToActive,
   sidebarRefreshTrigger,
   sliderStyle,
-  workspaceBackground,
   tasks,
   selectedDate,
   highlightedTaskId,
@@ -65,7 +62,6 @@ export const OkrWorkspace: React.FC<OkrWorkspaceProps> = ({
   onAddToDailyTasks,
   onToggleObjectiveBoardMode,
   onOkrItemsChanged,
-  onOpenWorkspaceThemeMenu,
   onDateChange,
   onCreateTask,
   onToggleTask,
@@ -84,13 +80,13 @@ export const OkrWorkspace: React.FC<OkrWorkspaceProps> = ({
   return (
     <div className="flex h-full flex-col">
       {apiUnavailableMessage ? (
-        <div className="mx-4 mt-4 rounded-2xl border border-[#f4c7c3] bg-[#fff5f4] px-4 py-3 text-[13px] text-[#b42318] shadow-[0_12px_32px_rgba(126,32,32,0.08)]">
+        <div className="mx-4 mt-4 rounded-2xl border border-[#f4c7c3] bg-[#fff5f4] px-4 py-3 text-[14px] text-[#b42318] shadow-[0_12px_32px_rgba(126,32,32,0.08)]">
           {apiUnavailableMessage}
         </div>
       ) : null}
       <div className="min-h-0 flex-1">
         <ResizableLayout
-          leftPanel={<Sidebar activeObjective={activeObjective} onSetActive={onSetActiveObjective} onAddToDailyTasks={onAddToDailyTasks} onToggleObjectiveBoardMode={onToggleObjectiveBoardMode} okrViewMode={okrViewMode} refreshTrigger={sidebarRefreshTrigger} shouldScrollToActive={shouldScrollToActive} sliderStyle={sliderStyle} onOpenWorkspaceThemeMenu={onOpenWorkspaceThemeMenu} onOkrItemsChanged={onOkrItemsChanged} />}
+          leftPanel={<Sidebar activeObjective={activeObjective} onSetActive={onSetActiveObjective} onAddToDailyTasks={onAddToDailyTasks} onToggleObjectiveBoardMode={onToggleObjectiveBoardMode} okrViewMode={okrViewMode} refreshTrigger={sidebarRefreshTrigger} shouldScrollToActive={shouldScrollToActive} sliderStyle={sliderStyle} onOkrItemsChanged={onOkrItemsChanged} />}
           centerPanel={
             <MainBoard
               tasks={tasks}
@@ -143,6 +139,7 @@ export const OkrWorkspace: React.FC<OkrWorkspaceProps> = ({
                       isPastDate={isPastDate}
                       onUpdateTaskNote={onUpdateTaskNote}
                       onObjectiveChanged={onExecutionItemsChanged}
+                      onSwitchObjectiveBoard={onToggleObjectiveBoardMode}
                       refreshTrigger={sidebarRefreshTrigger}
                       dragNotice={dragNotice}
                     />
@@ -153,7 +150,6 @@ export const OkrWorkspace: React.FC<OkrWorkspaceProps> = ({
               )
               : undefined
           }
-          workspaceBackground={workspaceBackground}
           leftPanelConfig={{
             minWidth: 180,
             defaultWidth: 240,

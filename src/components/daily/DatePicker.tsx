@@ -33,6 +33,26 @@ function getFirstDayOfMonth(year: number, month: number): number {
   return new Date(year, month, 1).getDay()
 }
 
+/**
+ * 获取日期在当年的周数（每年从 1 月 1 日重新计数，周一为一周起始）
+ * 例如：2026-04-14 -> 第 16 周
+ */
+function getWeekOfYear(date: Date): number {
+  const year = date.getFullYear()
+  const yearStart = new Date(year, 0, 1)
+
+  // 转为当天 00:00，避免时分秒影响
+  const currentDay = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  const startDay = new Date(yearStart.getFullYear(), yearStart.getMonth(), yearStart.getDate())
+
+  const dayOfYear = Math.floor((currentDay.getTime() - startDay.getTime()) / (24 * 60 * 60 * 1000)) + 1
+
+  // JS: 周日=0，周一=1 ... 周六=6；转换后：周一=0 ... 周日=6
+  const startWeekdayMondayBased = (yearStart.getDay() + 6) % 7
+
+  return Math.floor((dayOfYear + startWeekdayMondayBased - 1) / 7) + 1
+}
+
 const WEEKDAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -109,9 +129,18 @@ export const DatePicker: React.FC<DatePickerProps> = ({
   }
 
   const weekRows = Array.from({ length: totalCells / 7 }, (_, rowIndex) => ({
-    weekNumber: rowIndex + 1,
     cells: days.slice(rowIndex * 7, rowIndex * 7 + 7),
-  }))
+  })).map((row) => {
+    const firstDayCell = row.cells.find((cell) => cell.day !== null)
+    const weekNumber = firstDayCell?.day
+      ? getWeekOfYear(new Date(year, month, firstDayCell.day))
+      : null
+
+    return {
+      weekNumber,
+      cells: row.cells,
+    }
+  })
 
   return (
     <>
@@ -145,12 +174,12 @@ export const DatePicker: React.FC<DatePickerProps> = ({
         </div>
 
         {/* 星期标题 */}
-        <div className="grid grid-cols-[52px_repeat(7,minmax(0,1fr))] mb-2">
-          <div className="text-center text-[11px] font-medium text-gray-300 py-1">周数</div>
+        <div className="grid grid-cols-[56px_repeat(7,32px)] justify-between mb-2 items-center">
+          <div className="flex h-8 items-center justify-center text-[12px] font-medium text-gray-300">周数</div>
           {WEEKDAYS.map((weekday) => (
             <div
               key={weekday}
-              className="text-center text-[11px] font-medium text-gray-400 py-1"
+              className="flex h-8 items-center justify-center text-[12px] font-medium text-gray-400"
             >
               {weekday}
             </div>
@@ -160,17 +189,18 @@ export const DatePicker: React.FC<DatePickerProps> = ({
         {/* 日期格子 */}
         <div className="space-y-1">
           {weekRows.map((row, rowIndex) => (
-            <div key={`week-row-${rowIndex}`} className="grid grid-cols-[52px_repeat(7,minmax(0,1fr))] gap-1">
-              <div className="flex items-center justify-center text-[11px] font-medium text-gray-400">
-                第{row.weekNumber}周
+            <div key={`week-row-${rowIndex}`} className="grid grid-cols-[56px_repeat(7,32px)] justify-between items-center gap-y-1">
+              <div className="flex h-10 flex-col items-center justify-center text-[12px] font-medium text-gray-400">
+                <span className="leading-none">{row.weekNumber ?? '-'}周</span>
+                <span className="mt-0.5 h-1 w-1 rounded-full bg-transparent opacity-0" aria-hidden="true" />
               </div>
               {row.cells.map((item, cellIndex) => (
-                <div key={`week-${rowIndex}-cell-${cellIndex}`} className="aspect-square">
+                <div key={`week-${rowIndex}-cell-${cellIndex}`} className="flex h-10 w-8 items-center justify-center">
                   {item.day !== null && (
                     <button
                       onClick={() => handleSelectDay(item.day as number)}
                       className={`
-                        w-full h-full flex flex-col items-center justify-center rounded-lg text-[13px] font-medium
+                        flex h-10 w-8 flex-col items-center justify-center rounded-lg text-[14px] font-medium
                         transition-all duration-150
                         ${item.isSelected
                           ? 'bg-gray-900 text-white'
@@ -179,7 +209,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({
                       `}
                     >
                       {/* 日期数字：今天显示红色 */}
-                      <span className={`
+                      <span className={`leading-none
                         ${item.isSelected
                           ? 'text-white'
                           : item.isToday
@@ -209,7 +239,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({
             onClick={() => {
               onSelect(new Date())
             }}
-            className="text-[13px] font-medium text-gray-600 hover:text-gray-900 transition-colors"
+            className="text-[14px] font-medium text-gray-600 hover:text-gray-900 transition-colors"
           >
             Go to Today
           </button>

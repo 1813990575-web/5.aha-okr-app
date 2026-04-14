@@ -9,30 +9,9 @@ import type { WorkspaceId } from './workspaces/types'
 import { JournalWorkspace } from './workspaces/journal/JournalWorkspace'
 import { OkrWorkspace } from './workspaces/okr/OkrWorkspace'
 
-const WORKSPACE_THEME_PRESETS = [
-  { id: 'milk-white', label: '奶白灰', background: 'linear-gradient(180deg,#fbfbfa,#f5f5f3)' },
-  { id: 'mist-blue', label: '冷灰蓝', background: 'linear-gradient(180deg,#eff2f5,#e9edf2)' },
-  { id: 'moon-gray', label: '月光灰', background: 'linear-gradient(180deg,#eef0f2,#e6e8ec)' },
-  { id: 'graphite-mist', label: '石墨雾灰', background: 'linear-gradient(180deg,#e8eaee,#dde1e7)' },
-  { id: 'soft-concrete', label: '浅混凝土', background: 'linear-gradient(180deg,#e7e8e6,#dddfdc)' },
-  { id: 'periwinkle', label: '长春花灰紫', background: 'linear-gradient(180deg,#b2b8ea,#939cdd)' },
-  { id: 'soft-lilac', label: '雾紫', background: 'linear-gradient(180deg,#d7cdf7,#beb1ef)' },
-  { id: 'dusty-cobalt', label: '钴蓝灰', background: 'linear-gradient(180deg,#4f79e8,#3d61bf)' },
-  { id: 'muted-mustard', label: '芥末灰黄', background: 'linear-gradient(180deg,#f3c55b,#e0ae3b)' },
-  { id: 'powder-pink', label: '灰粉', background: 'linear-gradient(180deg,#efb4c9,#de94af)' },
-  { id: 'dusty-coral', label: '灰珊瑚', background: 'linear-gradient(180deg,#ef7864,#df6252)' },
-  { id: 'midnight-slate', label: '深夜石板', background: 'linear-gradient(180deg,#2c313d,#20242d)' },
-  { id: 'graphite-night', label: '石墨夜', background: 'linear-gradient(180deg,#3a3f49,#2a2e36)' },
-  { id: 'ink-blue-black', label: '墨蓝黑', background: 'linear-gradient(180deg,#243041,#1a2330)' },
-  { id: 'plum-night', label: '夜梅紫', background: 'linear-gradient(180deg,#433a52,#2f283a)' },
-  { id: 'forest-night', label: '深林夜绿', background: 'linear-gradient(180deg,#223830,#172721)' },
-] as const
-
 function App() {
   const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceId>('okr')
   const [sliderStyle, setSliderStyle] = useState<'bead' | 'pill'>('bead')
-  const [workspaceThemeId, setWorkspaceThemeId] = useState<(typeof WORKSPACE_THEME_PRESETS)[number]['id']>('milk-white')
-  const [workspaceThemeMenu, setWorkspaceThemeMenu] = useState<{ x: number; y: number } | null>(null)
   const [okrViewMode, setOkrViewMode] = useState<'daily' | 'objective-board'>('daily')
   const [focusedObjectiveBoard, setFocusedObjectiveBoard] = useState<{ id: string; title: string; color?: string | null } | null>(null)
 
@@ -81,7 +60,16 @@ function App() {
   // 处理选中请求 - 点击中间面板任务时切换左侧选中态（需要滚动）
   const handleSetActiveObjective = useCallback((itemId: string, shouldScroll: boolean = false) => {
     setActiveObjective(itemId)
-    setShouldScrollToActive(shouldScroll)
+    if (!shouldScroll) {
+      setShouldScrollToActive(false)
+      return
+    }
+
+    // 强制触发一次“滚动到选中项”，即便连续点击同一个任务
+    setShouldScrollToActive(false)
+    window.setTimeout(() => {
+      setShouldScrollToActive(true)
+    }, 0)
   }, [])
 
   const handleExecutionItemsChanged = useCallback(async () => {
@@ -137,7 +125,7 @@ function App() {
 
     if (notice) {
       setDragNotice(notice)
-      window.setTimeout(() => setDragNotice(null), 2200)
+      window.setTimeout(() => setDragNotice(null), 800)
     }
   }, [])
 
@@ -147,7 +135,7 @@ function App() {
   ) => {
     if (okrViewMode === 'daily' && item.type === 'O') {
       setDragNotice('当前执行区最高只接受关键结果，请改为拖入关键结果')
-      window.setTimeout(() => setDragNotice(null), 2200)
+      window.setTimeout(() => setDragNotice(null), 800)
       return
     }
 
@@ -183,7 +171,7 @@ function App() {
       (task) => (task.sourceItemId ?? task.linkedGoalId) === sourceItemId
     )
     if (existingTask) {
-      showTaskFeedback(existingTask.id, '您已加入了代办，不需要重复拖动', [sourceItemId])
+      showTaskFeedback(existingTask.id, '无需重复添加', [sourceItemId])
       return
     }
 
@@ -416,17 +404,6 @@ function App() {
   const isJournalWorkspace = activeWorkspace === 'journal'
   const isSettingsWorkspace = activeWorkspace === 'settings'
   const isPlaceholderWorkspace = !isOkrWorkspace && !isJournalWorkspace && !isSettingsWorkspace
-  const workspaceBackground =
-    WORKSPACE_THEME_PRESETS.find((preset) => preset.id === workspaceThemeId)?.background ??
-    WORKSPACE_THEME_PRESETS[0].background
-
-  useEffect(() => {
-    if (!workspaceThemeMenu) return
-
-    const handleClose = () => setWorkspaceThemeMenu(null)
-    document.addEventListener('click', handleClose)
-    return () => document.removeEventListener('click', handleClose)
-  }, [workspaceThemeMenu])
 
   return (
     <SidebarThemeProvider>
@@ -452,7 +429,6 @@ function App() {
                   shouldScrollToActive={shouldScrollToActive}
                   sidebarRefreshTrigger={sidebarRefreshTrigger}
                   sliderStyle={sliderStyle}
-                  workspaceBackground={workspaceBackground}
                   tasks={tasks}
                   selectedDate={selectedDate}
                   highlightedTaskId={highlightedTaskId}
@@ -463,7 +439,6 @@ function App() {
                   onAddToDailyTasks={handleAddToDailyTasks}
                   onToggleObjectiveBoardMode={handleToggleObjectiveBoardMode}
                   onOkrItemsChanged={handleOkrItemsChanged}
-                  onOpenWorkspaceThemeMenu={setWorkspaceThemeMenu}
                   onDateChange={setSelectedDate}
                   onCreateTask={handleCreateTask}
                   onToggleTask={handleToggleTask}
@@ -479,39 +454,11 @@ function App() {
               )}
             </div>
           </div>
-          {workspaceThemeMenu && isOkrWorkspace && (
-            <div
-              className="fixed z-[100] max-h-[420px] min-w-[196px] overflow-y-auto rounded-2xl border border-black/[0.08] bg-white/92 p-2 shadow-[0_18px_50px_rgba(15,23,42,0.18)] backdrop-blur-xl"
-              style={{ left: workspaceThemeMenu.x, top: workspaceThemeMenu.y }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="px-2 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-black/32">
-                工作台底色
-              </div>
-              {WORKSPACE_THEME_PRESETS.map((preset) => (
-                <button
-                  key={preset.id}
-                  type="button"
-                  onClick={() => {
-                    setWorkspaceThemeId(preset.id)
-                    setWorkspaceThemeMenu(null)
-                  }}
-                  className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-black/[0.04]"
-                >
-                  <span
-                    className="h-5 w-5 rounded-full border border-black/10"
-                    style={{ background: preset.background }}
-                  />
-                  <span className="text-sm text-[#3f4754]">{preset.label}</span>
-                </button>
-              ))}
-            </div>
-          )}
         </div>
       </DragProvider>
       {dragNotice && okrViewMode !== 'objective-board' && (
         <div className="pointer-events-none fixed bottom-6 left-1/2 z-[120] -translate-x-1/2">
-          <div className="rounded-full border border-black/8 bg-white/92 px-4 py-2 text-[13px] font-medium text-[#4c5461] shadow-[0_12px_28px_rgba(15,23,42,0.12)] backdrop-blur-xl">
+          <div className="rounded-full border border-white/10 bg-[rgba(39,39,41,0.92)] px-4 py-2 text-[14px] font-medium text-white shadow-[0_16px_32px_rgba(15,23,42,0.22)] backdrop-blur-xl">
             {dragNotice}
           </div>
         </div>

@@ -33,7 +33,7 @@ export const PlaceholderWorkspace: React.FC<PlaceholderWorkspaceProps> = ({ sect
 
       <div className="flex flex-1 items-center justify-center p-10">
         <div className="w-full max-w-xl rounded-[28px] border border-black/[0.05] bg-white/72 px-10 py-12 text-center shadow-[0_24px_60px_rgba(15,23,42,0.06)] backdrop-blur-xl">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-black/30">
+          <p className="text-[12px] font-semibold uppercase tracking-[0.28em] text-black/30">
             Coming Soon
           </p>
           <h2 className="mt-5 text-[28px] font-semibold tracking-[-0.03em] text-[#2f3742]">

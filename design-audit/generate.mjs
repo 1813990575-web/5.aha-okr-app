@@ -12,6 +12,108 @@ const OUT_JSON = path.join(OUT_DATA_DIR, 'design-spec.json')
 const OUT_HTML = path.join(OUT_DIR, 'index.html')
 
 const SOURCE_EXT = new Set(['.ts', '.tsx', '.css'])
+const TYPO_SIZE_VARS = {
+  '--type-section-size': '40px',
+  '--type-title-size': '28px',
+  '--type-card-title-size': '21px',
+  '--type-body-size': '17px',
+  '--type-body-emphasis-size': '17px',
+  '--type-link-size': '14px',
+  '--type-micro-size': '12px',
+}
+const TYPO_WEIGHT_VARS = {
+  '--type-section-weight': '600',
+  '--type-title-weight': '700',
+  '--type-card-title-weight': '400',
+  '--type-body-weight': '400',
+  '--type-body-emphasis-weight': '600',
+  '--type-link-weight': '400',
+  '--type-micro-weight': '400',
+}
+const TYPO_LINE_HEIGHT_VARS = {
+  '--type-section-line-height': '1.1',
+  '--type-title-line-height': '1.14',
+  '--type-card-title-line-height': '1.19',
+  '--type-body-line-height': '1.47',
+  '--type-body-emphasis-line-height': '1.24',
+  '--type-link-line-height': '1.43',
+  '--type-micro-line-height': '1.33',
+}
+const TYPO_SYSTEM = [
+  {
+    role: 'Display Secondary',
+    className: 'typo-section-heading',
+    sizeVar: '--type-section-size',
+    weightVar: '--type-section-weight',
+    lineVar: '--type-section-line-height',
+    example: '阶段目标总览',
+    guidance: '页面级视觉标题（克制使用）',
+  },
+  {
+    role: 'Section Heading',
+    className: 'typo-title-heading',
+    sizeVar: '--type-title-size',
+    weightVar: '--type-title-weight',
+    lineVar: '--type-title-line-height',
+    example: '本周重点',
+    guidance: '主要分区标题',
+  },
+  {
+    role: 'Card Title Strong',
+    className: 'typo-card-title-bold',
+    sizeVar: '--type-card-title-size',
+    weightVar: '--type-card-title-weight',
+    lineVar: '--type-card-title-line-height',
+    weightOverride: '700',
+    example: '还没有可展示的分栏目标',
+    guidance: '卡片标题（强调）',
+  },
+  {
+    role: 'Card Title',
+    className: 'typo-card-title',
+    sizeVar: '--type-card-title-size',
+    weightVar: '--type-card-title-weight',
+    lineVar: '--type-card-title-line-height',
+    example: '愿景记录',
+    guidance: '卡片标题（常规）',
+  },
+  {
+    role: 'Body',
+    className: 'typo-body',
+    sizeVar: '--type-body-size',
+    weightVar: '--type-body-weight',
+    lineVar: '--type-body-line-height',
+    example: '今天完成了 2 项关键任务。',
+    guidance: '正文主文案',
+  },
+  {
+    role: 'Body Emphasis',
+    className: 'typo-body-emphasis',
+    sizeVar: '--type-body-emphasis-size',
+    weightVar: '--type-body-emphasis-weight',
+    lineVar: '--type-body-emphasis-line-height',
+    example: '愿景记录',
+    guidance: '强调正文 / 小标题',
+  },
+  {
+    role: 'Link / Secondary',
+    className: 'typo-link',
+    sizeVar: '--type-link-size',
+    weightVar: '--type-link-weight',
+    lineVar: '--type-link-line-height',
+    example: '查看全部',
+    guidance: '次级说明 / 可点击文本',
+  },
+  {
+    role: 'Micro / Meta',
+    className: 'typo-micro',
+    sizeVar: '--type-micro-size',
+    weightVar: '--type-micro-weight',
+    lineVar: '--type-micro-line-height',
+    example: '最后更新 18:28',
+    guidance: '元信息、标签、时间戳',
+  },
+]
 
 function walk(dir) {
   const entries = fs.readdirSync(dir, { withFileTypes: true })
@@ -106,7 +208,7 @@ function tailwindClassToFontSize(value) {
   }
   if (map[value]) return map[value]
   const arbitrary = value.match(/^text-\[(.+)\]$/)
-  if (arbitrary) return arbitrary[1]
+  if (arbitrary && isArbitraryTextSizeValue(arbitrary[1])) return arbitrary[1]
   return null
 }
 
@@ -116,13 +218,15 @@ const regex = {
   colorFunc: /\b(?:rgba?|hsla?)\([^\n\r\)]*\)/g,
   twColorArbitrary: /\b(?:text|bg|border|from|to|via|stroke|fill)-\[[^\]]+\]/g,
   twColorScale: new RegExp(`\\b(?:text|bg|border|from|to|via|stroke|fill)-${colorNames}(?:-\\d{1,3})?(?:\\/\\[[^\\]]+\\]|\\/\\d{1,3})?\\b`, 'g'),
-  twFontSize: /\btext-(?:\[[^\]]+\]|xs|sm|base|lg|xl|2xl|3xl|4xl|5xl|6xl|7xl|8xl|9xl)\b/g,
+  twFontSize: /\btext-(?:xs|sm|base|lg|xl|2xl|3xl|4xl|5xl|6xl|7xl|8xl|9xl)\b|\btext-\[[^\]]+\]/g,
   twFontWeight: /\bfont-(?:thin|extralight|light|normal|medium|semibold|bold|extrabold|black|\[[^\]]+\])\b/g,
   twLineHeight: /\bleading-(?:none|tight|snug|normal|relaxed|loose|\d+|\[[^\]]+\])\b/g,
   twTracking: /\btracking-(?:tighter|tight|normal|wide|wider|widest|\[[^\]]+\])\b/g,
   cssFontFamily: /font-family\s*:\s*([^;]+);?/g,
+  cssFontSize: /font-size\s*:\s*([^;]+);?/g,
   jsFontFamilySingle: /fontFamily\s*:\s*'([^']+)'/g,
   jsFontFamilyDouble: /fontFamily\s*:\s*"([^"]+)"/g,
+  jsFontSize: /\bfontSize\s*:\s*([^,}\n]+)/g,
   twSpacing: /\b(?:p|px|py|pt|pr|pb|pl|m|mx|my|mt|mr|mb|ml|gap|space-x|space-y)-(?:\[[^\]]+\]|-?\d+(?:\.\d+)?|px)\b/g,
   twRadius: /\brounded(?:-(?:none|sm|md|lg|xl|2xl|3xl|full|\[[^\]]+\]|[trblxy]-[^\s"'`]+))?\b/g,
   jsRadius: /\b(?:borderRadius|cornerRadius)\s*:\s*([^,}\n]+)/g,
@@ -147,7 +251,7 @@ function safeSnippet(line) {
 }
 
 function parseLucideImports(source) {
-  const importRegex = /import\s*\{([\s\S]*?)\}\s*from\s*['"]lucide-react['"]/g
+  const importRegex = /import\s*\{([^}]*)\}\s*from\s*['"]lucide-react['"]/g
   const icons = []
   let match
   while ((match = importRegex.exec(source)) !== null) {
@@ -166,6 +270,128 @@ function parseLucideImports(source) {
     }
   }
   return icons
+}
+
+function isArbitraryColorValue(value) {
+  const v = value.trim().toLowerCase()
+  if (!v) return false
+  if (
+    v.startsWith('#') ||
+    v.startsWith('rgb(') ||
+    v.startsWith('rgba(') ||
+    v.startsWith('hsl(') ||
+    v.startsWith('hsla(') ||
+    v.startsWith('oklch(') ||
+    v.startsWith('oklab(') ||
+    v.startsWith('lab(') ||
+    v.startsWith('lch(') ||
+    v.startsWith('color(') ||
+    v.startsWith('var(')
+  ) {
+    return true
+  }
+  if (v.includes('gradient(')) return true
+  if (v === 'transparent' || v === 'currentcolor' || v === 'inherit') return true
+  if (/^[a-z]+$/.test(v)) return true
+  return false
+}
+
+function isArbitraryColorClass(token) {
+  const match = token.match(/^(?:text|bg|border|from|to|via|stroke|fill)-\[(.+)\]$/)
+  if (!match) return false
+  return isArbitraryColorValue(match[1])
+}
+
+function isArbitraryTextSizeValue(value) {
+  const v = value.trim().toLowerCase()
+  if (!v) return false
+  const cssVarMatch = v.match(/^var\(--([^)]+)\)$/)
+  if (cssVarMatch) {
+    return /(size|font-size|type)/.test(cssVarMatch[1])
+  }
+  if (isArbitraryColorValue(v)) return false
+  if (/^-?\d+(\.\d+)?$/.test(v)) return true
+  if (/^-?\d+(\.\d+)?(?:px|r?em|%|vw|vh|vmin|vmax|ch|ex|pt|pc|cm|mm|in)$/.test(v)) return true
+  if (/^(?:calc|min|max|clamp)\(.+\)$/.test(v)) return true
+  return false
+}
+
+function parseArbitraryClassValue(token) {
+  const match = token.match(/^(?:text|bg|border|from|to|via|stroke|fill)-\[(.+)\]$/)
+  return match ? match[1].trim() : null
+}
+
+function parseTailwindColorClass(token) {
+  const match = token.match(/^(?:text|bg|border|from|to|via|stroke|fill)-([a-z]+)(?:-(\d{1,3}))?(?:\/(\d{1,3}))?$/)
+  if (!match) return null
+  return {
+    colorName: match[1],
+    shade: match[2] || null,
+    opacity: match[3] ? Number(match[3]) : null,
+  }
+}
+
+function hexToRgba(hex, opacity) {
+  const raw = hex.replace('#', '')
+  if (!(raw.length === 3 || raw.length === 6)) return hex
+  const normalized = raw.length === 3 ? raw.split('').map((c) => c + c).join('') : raw
+  const r = Number.parseInt(normalized.slice(0, 2), 16)
+  const g = Number.parseInt(normalized.slice(2, 4), 16)
+  const b = Number.parseInt(normalized.slice(4, 6), 16)
+  if (!Number.isFinite(r) || !Number.isFinite(g) || !Number.isFinite(b)) return hex
+  const a = Math.max(0, Math.min(1, opacity / 100))
+  return `rgba(${r}, ${g}, ${b}, ${a})`
+}
+
+function tailwindColorToSwatch(token) {
+  if (token.startsWith('#') || token.startsWith('rgb') || token.startsWith('hsl') || token.startsWith('okl')) {
+    return token
+  }
+
+  const arbitraryValue = parseArbitraryClassValue(token)
+  if (arbitraryValue) {
+    if (isArbitraryColorValue(arbitraryValue)) {
+      if (arbitraryValue.includes('gradient(')) {
+        const hexMatch = arbitraryValue.match(/#(?:[\da-fA-F]{3,8})/)
+        return hexMatch ? hexMatch[0] : '#dbe2ea'
+      }
+      return arbitraryValue
+    }
+    return '#dbe2ea'
+  }
+
+  const parsed = parseTailwindColorClass(token)
+  if (!parsed) return '#dbe2ea'
+
+  const palette = {
+    black: '#000000',
+    white: '#ffffff',
+    gray: '#6b7280',
+    slate: '#64748b',
+    zinc: '#71717a',
+    neutral: '#737373',
+    stone: '#78716c',
+    red: '#ef4444',
+    orange: '#f97316',
+    amber: '#f59e0b',
+    yellow: '#eab308',
+    lime: '#84cc16',
+    green: '#22c55e',
+    emerald: '#10b981',
+    teal: '#14b8a6',
+    cyan: '#06b6d4',
+    sky: '#0ea5e9',
+    blue: '#3b82f6',
+    indigo: '#6366f1',
+    violet: '#8b5cf6',
+    purple: '#a855f7',
+    fuchsia: '#d946ef',
+    pink: '#ec4899',
+    rose: '#f43f5e',
+  }
+  const base = palette[parsed.colorName] || '#dbe2ea'
+  if (parsed.opacity !== null) return hexToRgba(base, parsed.opacity)
+  return base
 }
 
 function sortEntries(map) {
@@ -204,8 +430,159 @@ function normalizeRadiusForPreview(token) {
 }
 
 function normalizeFontSizeForPreview(token) {
+  if (token.startsWith('font-size:')) {
+    const raw = token.slice('font-size:'.length).trim()
+    const cleaned = raw.replace(/^['"]|['"]$/g, '')
+    const varMatch = cleaned.match(/^var\((--[^)]+)\)$/)
+    if (varMatch && TYPO_SIZE_VARS[varMatch[1]]) return TYPO_SIZE_VARS[varMatch[1]]
+    if (/^-?\d+(\.\d+)?$/.test(cleaned)) return `${cleaned}px`
+    return cleaned || '14px'
+  }
   const normal = tailwindClassToFontSize(token)
   return normal || '14px'
+}
+
+function normalizeTypographyTokenMeta(token) {
+  const meta = {
+    size: null,
+    weight: null,
+    lineHeight: null,
+  }
+
+  const size = normalizeFontSizeForPreview(token)
+  if (size && (token.startsWith('text-') || token.startsWith('font-size:'))) {
+    meta.size = size
+  }
+
+  const weightMap = {
+    'font-thin': '100',
+    'font-extralight': '200',
+    'font-light': '300',
+    'font-normal': '400',
+    'font-medium': '500',
+    'font-semibold': '600',
+    'font-bold': '700',
+    'font-extrabold': '800',
+    'font-black': '900',
+  }
+  if (weightMap[token]) meta.weight = weightMap[token]
+
+  const lineMap = {
+    'leading-none': '1.00',
+    'leading-tight': '1.25',
+    'leading-snug': '1.375',
+    'leading-normal': '1.50',
+    'leading-relaxed': '1.625',
+    'leading-loose': '2.00',
+    'leading-3': '0.75rem',
+    'leading-4': '1rem',
+    'leading-5': '1.25rem',
+    'leading-6': '1.5rem',
+    'leading-7': '1.75rem',
+    'leading-8': '2rem',
+    'leading-9': '2.25rem',
+    'leading-10': '2.5rem',
+  }
+  if (lineMap[token]) meta.lineHeight = lineMap[token]
+
+  const arbitraryLeading = token.match(/^leading-\[(.+)\]$/)
+  if (arbitraryLeading) meta.lineHeight = arbitraryLeading[1]
+
+  return meta
+}
+
+function sizeToPx(size) {
+  if (!size) return null
+  const v = String(size).trim().toLowerCase()
+  const px = v.match(/^(-?\d+(?:\.\d+)?)px$/)
+  if (px) return Number(px[1])
+  const rem = v.match(/^(-?\d+(?:\.\d+)?)rem$/)
+  if (rem) return Number(rem[1]) * 16
+  const em = v.match(/^(-?\d+(?:\.\d+)?)em$/)
+  if (em) return Number(em[1]) * 16
+  if (/^-?\d+(\.\d+)?$/.test(v)) return Number(v)
+  return null
+}
+
+function formatNumber(value, digits = 3) {
+  if (!Number.isFinite(value)) return String(value)
+  const text = value.toFixed(digits)
+  return text.replace(/\.?0+$/, '')
+}
+
+function formatPxRemLabel(sizeValue) {
+  const px = sizeToPx(sizeValue)
+  if (px === null || !Number.isFinite(px)) {
+    return {
+      px: null,
+      pxText: '-',
+      remText: '-',
+      label: sizeValue || '-',
+    }
+  }
+  const rem = px / 16
+  const pxText = `${formatNumber(px, 2)}px`
+  const remText = `${formatNumber(rem, 3)}rem`
+  return {
+    px: Number(px.toFixed(2)),
+    pxText,
+    remText,
+    label: `${pxText} (${remText})`,
+  }
+}
+
+function buildTypographyStandardEntries(semanticTypeMap) {
+  return TYPO_SYSTEM.map((item) => {
+    const size = TYPO_SIZE_VARS[item.sizeVar] || '14px'
+    const weight = item.weightOverride || TYPO_WEIGHT_VARS[item.weightVar] || '400'
+    const lineHeight = TYPO_LINE_HEIGHT_VARS[item.lineVar] || '1.4'
+    const sizeLabel = formatPxRemLabel(size)
+    const usageEntry = semanticTypeMap.get(item.className)
+    return {
+      role: item.role,
+      className: item.className,
+      guidance: item.guidance,
+      example: item.example,
+      size,
+      weight,
+      lineHeight,
+      sizeLabel: sizeLabel.label,
+      sizePx: sizeLabel.px,
+      usages: usageEntry ? usageEntry.usages : [],
+      usageCount: usageEntry ? usageEntry.count : 0,
+    }
+  })
+}
+
+function enrichTypographySizeEntries(entries, standardPxSet) {
+  return entries.map((entry) => {
+    const size = normalizeFontSizeForPreview(entry.token)
+    const formatted = formatPxRemLabel(size)
+    return {
+      ...entry,
+      normalizedSize: size,
+      sizePx: formatted.px,
+      sizeLabel: formatted.label,
+      inStandard: formatted.px !== null ? standardPxSet.has(formatted.px) : false,
+    }
+  })
+}
+
+function computeTypographyStats(typographyEntries) {
+  const values = new Set()
+  typographyEntries.forEach((entry) => {
+    const meta = normalizeTypographyTokenMeta(entry.token)
+    const px = sizeToPx(meta.size)
+    if (px !== null && Number.isFinite(px)) {
+      values.add(Number(px.toFixed(2)))
+    }
+  })
+  const sorted = [...values].sort((a, b) => a - b)
+  return {
+    minPx: sorted.length > 0 ? sorted[0] : null,
+    maxPx: sorted.length > 0 ? sorted[sorted.length - 1] : null,
+    scalePx: sorted,
+  }
 }
 
 function usageChipsStatic(usages) {
@@ -219,10 +596,12 @@ function usageChipsStatic(usages) {
 function buildCardStatic(item, section) {
   const token = item.token
   let preview = ''
+  let tokenMetaHtml = ''
   if (section === 'colors') {
-    const isClassColor = token.startsWith('text-') || token.startsWith('bg-') || token.startsWith('border-')
-    const color = isClassColor ? '#e2e8f0' : token
-    preview = `<div class="swatch" style="background:${htmlEscape(color)}"></div><div>${htmlEscape(isClassColor ? 'Tailwind 颜色类' : token)}</div>`
+    const isClassColor = /^(?:text|bg|border|from|to|via|stroke|fill)-/.test(token)
+    const color = isClassColor ? tailwindColorToSwatch(token) : token
+    const desc = isClassColor ? `Tailwind 类: ${token}` : token
+    preview = `<div class="swatch" style="background:${htmlEscape(color)}"></div><div>${htmlEscape(desc)}</div>`
   } else if (section === 'shadows') {
     const shadow = token.startsWith('css:') || token.startsWith('style:')
       ? token.replace(/^(css:|style:)/, '')
@@ -241,8 +620,69 @@ function buildCardStatic(item, section) {
     preview = `<div class="spacing-bar" style="width:${width}px"></div><div>${htmlEscape(raw)}</div>`
   } else if (section === 'icons') {
     preview = `<div class="swatch" style="background:linear-gradient(135deg,#eef2ff,#e0e7ff)"></div><div style="font-family:ui-monospace,Menlo,monospace">&lt;${htmlEscape(token)} /&gt;</div>`
+  } else if (section === 'typographySizes') {
+    const tagClass = item.inStandard ? 'spec-tag ok' : 'spec-tag warn'
+    const tagText = item.inStandard ? '在规范内' : '待收敛'
+    tokenMetaHtml = `<div class="token-meta">字号 ${htmlEscape(item.sizeLabel || '-')} · <span class="${tagClass}">${tagText}</span></div>`
+    preview = `<div style="font-size:${htmlEscape(item.normalizedSize || '14px')};font-weight:600;line-height:1.4">字体示例 The quick fox 你好</div>`
+  } else if (section === 'fontWeights') {
+    const weightMap = {
+      'font-thin': '100',
+      'font-extralight': '200',
+      'font-light': '300',
+      'font-normal': '400',
+      'font-medium': '500',
+      'font-semibold': '600',
+      'font-bold': '700',
+      'font-extrabold': '800',
+      'font-black': '900',
+    }
+    const weight = weightMap[token] || token.replace(/^font-\[(.+)\]$/, '$1')
+    tokenMetaHtml = `<div class="token-meta">字重 ${htmlEscape(weight)}</div>`
+    preview = `<div style="font-size:16px;font-weight:${htmlEscape(weight)};line-height:1.4">字体示例 The quick fox 你好</div>`
+  } else if (section === 'lineHeights') {
+    const lineMap = {
+      'leading-none': '1.00',
+      'leading-tight': '1.25',
+      'leading-snug': '1.375',
+      'leading-normal': '1.50',
+      'leading-relaxed': '1.625',
+      'leading-loose': '2.00',
+      'leading-3': '0.75rem',
+      'leading-4': '1rem',
+      'leading-5': '1.25rem',
+      'leading-6': '1.5rem',
+      'leading-7': '1.75rem',
+      'leading-8': '2rem',
+      'leading-9': '2.25rem',
+      'leading-10': '2.5rem',
+    }
+    const lineHeight = lineMap[token] || token.replace(/^leading-\[(.+)\]$/, '$1')
+    tokenMetaHtml = `<div class="token-meta">行高 ${htmlEscape(lineHeight)}</div>`
+    preview = `<div style="font-size:15px;font-weight:500;line-height:${htmlEscape(lineHeight)}">字体示例 The quick fox 你好</div>`
+  } else if (section === 'tracking') {
+    const trackingMap = {
+      'tracking-tighter': '-0.05em',
+      'tracking-tight': '-0.025em',
+      'tracking-normal': '0',
+      'tracking-wide': '0.025em',
+      'tracking-wider': '0.05em',
+      'tracking-widest': '0.1em',
+    }
+    const tracking = trackingMap[token] || token.replace(/^tracking-\[(.+)\]$/, '$1')
+    tokenMetaHtml = `<div class="token-meta">字距 ${htmlEscape(tracking)}</div>`
+    preview = `<div style="font-size:15px;font-weight:600;line-height:1.4;letter-spacing:${htmlEscape(tracking)}">字体示例 The quick fox 你好</div>`
+  } else if (section === 'fontFamilies') {
+    tokenMetaHtml = `<div class="token-meta">字体族</div>`
+    preview = `<div style="font-size:15px;font-weight:500;line-height:1.4;font-family:${htmlEscape(token)}">字体示例 The quick fox 你好</div>`
   } else {
-    const size = token.startsWith('text-') ? normalizeFontSizeForPreview(token) : '14px'
+    const typoMeta = normalizeTypographyTokenMeta(token)
+    const size = typoMeta.size || '14px'
+    const metaParts = []
+    if (typoMeta.size) metaParts.push(`字号 ${typoMeta.size}`)
+    if (typoMeta.weight) metaParts.push(`字重 ${typoMeta.weight}`)
+    if (typoMeta.lineHeight) metaParts.push(`行高 ${typoMeta.lineHeight}`)
+    tokenMetaHtml = `<div class="token-meta">${htmlEscape(metaParts.length > 0 ? metaParts.join(' · ') : '字号 -')}</div>`
     preview = `<div style="font-size:${htmlEscape(size)};font-weight:600;line-height:1.4">字体示例 The quick fox 你好</div>`
   }
 
@@ -250,6 +690,7 @@ function buildCardStatic(item, section) {
         <article class="card" data-token="${htmlEscape(token.toLowerCase())}" data-file="${htmlEscape(item.usages.map((u) => u.file.toLowerCase()).join(' '))}">
           <div class="count">${item.count}次</div>
           <div class="token">${htmlEscape(token)}</div>
+          ${tokenMetaHtml}
           <div class="preview">${preview}</div>
           <div class="usages">${usageChipsStatic(item.usages)}</div>
         </article>
@@ -260,8 +701,42 @@ function renderStaticSection(list, section) {
   return list.map((item) => buildCardStatic(item, section)).join('')
 }
 
+function renderTypographyStandardRows(list) {
+  return list.map((item) => {
+    const usage = item.usageCount > 0
+      ? usageChipsStatic(item.usages)
+      : '<span class="usage-chip">当前未落地</span>'
+    return `
+      <article class="spec-row card" data-token="${htmlEscape((item.className || '').toLowerCase())}" data-file="${htmlEscape(item.usages.map((u) => u.file.toLowerCase()).join(' '))}">
+        <div class="spec-top">
+          <div class="spec-role">${htmlEscape(item.role)}</div>
+          <div class="spec-class">${htmlEscape(item.className)}</div>
+        </div>
+        <div class="spec-preview" style="font-size:${htmlEscape(item.size)};font-weight:${htmlEscape(item.weight)};line-height:${htmlEscape(item.lineHeight)}">${htmlEscape(item.example)}</div>
+        <div class="spec-meta">${htmlEscape(`${item.sizeLabel} / ${item.weight} / ${item.lineHeight} / Apple System`)}</div>
+        <div class="spec-guidance">${htmlEscape(item.guidance)}</div>
+        <div class="usages">${usage}</div>
+      </article>
+    `
+  }).join('')
+}
+
 function buildHtml(data) {
   const safeJson = JSON.stringify(data).replaceAll('</script>', '<\\/script>')
+  const minText = data.typographyStats?.minPx === null || data.typographyStats?.minPx === undefined
+    ? '-'
+    : `${data.typographyStats.minPx}px`
+  const maxText = data.typographyStats?.maxPx === null || data.typographyStats?.maxPx === undefined
+    ? '-'
+    : `${data.typographyStats.maxPx}px`
+  const scaleList = (data.typographyStats?.scalePx || []).map((value) => `${value}px`).join(', ')
+  const typeSummaryHtml = `
+      <div class="type-summary">
+        <span class="type-summary-chip">最小字号 ${htmlEscape(minText)}</span>
+        <span class="type-summary-chip">最大字号 ${htmlEscape(maxText)}</span>
+        <span class="type-summary-chip">字号档位 ${htmlEscape(scaleList || '-')}</span>
+      </div>
+  `
   return `<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -379,6 +854,75 @@ function buildHtml(data) {
       margin-bottom: 6px;
       word-break: break-all;
     }
+    .token-meta {
+      margin-bottom: 6px;
+      font-size: 11px;
+      color: #667085;
+      font-weight: 600;
+    }
+    .spec-tag {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 1px 8px;
+      font-size: 10px;
+      border: 1px solid transparent;
+      vertical-align: middle;
+    }
+    .spec-tag.ok {
+      color: #0f766e;
+      background: #ecfdf5;
+      border-color: #a7f3d0;
+    }
+    .spec-tag.warn {
+      color: #92400e;
+      background: #fffbeb;
+      border-color: #fde68a;
+    }
+    .spec-row {
+      min-height: 180px;
+      border-radius: 16px;
+    }
+    .spec-top {
+      display: flex;
+      gap: 8px;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .spec-role {
+      font-size: 12px;
+      color: #667085;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .spec-class {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11px;
+      color: #475467;
+      background: #f8fafc;
+      border: 1px solid #e5e7eb;
+      border-radius: 999px;
+      padding: 2px 8px;
+      white-space: nowrap;
+    }
+    .spec-preview {
+      margin: 8px 0 6px;
+      color: #334155;
+      letter-spacing: -0.01em;
+    }
+    .spec-meta {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+      color: #667085;
+      margin-bottom: 6px;
+    }
+    .spec-guidance {
+      font-size: 12px;
+      color: #475467;
+      margin-bottom: 8px;
+    }
     .count {
       float: right;
       font-size: 11px;
@@ -447,6 +991,21 @@ function buildHtml(data) {
       color: #667085;
       font-size: 12px;
       margin: 2px 0 10px;
+    }
+    .type-summary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 2px 0 12px;
+    }
+    .type-summary-chip {
+      font-size: 11px;
+      color: #475467;
+      border: 1px solid #d8dee8;
+      border-radius: 999px;
+      padding: 3px 9px;
+      background: #f8fafc;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     }
     .tooltip {
       position: fixed;
@@ -532,10 +1091,41 @@ function buildHtml(data) {
       </div>
     </header>
 
+    <section class="section" data-section="typography-standard">
+      <h2>字体规范（推荐复用）</h2>
+      <div class="legend">这部分是规范定义。后续新增/改版优先使用这些语义类，不直接写裸字号。</div>
+      <div id="typographyStandardGrid" class="grid">${renderTypographyStandardRows(data.typographyStandard || [])}</div>
+    </section>
+
     <section class="section" data-section="typography">
-      <h2>字体与排版</h2>
-      <div class="legend">包括字号、字重、行高、字距、字体族。</div>
-      <div id="typographyGrid" class="grid">${renderStaticSection(data.typography, 'typography')}</div>
+      <h2>字号现状（与规范对比）</h2>
+      <div class="legend">统一显示为 px(rem)；标记“待收敛”的即不在当前规范字号集内。</div>
+      ${typeSummaryHtml}
+      <div id="typographyGrid" class="grid">${renderStaticSection(data.typographySizes || [], 'typographySizes')}</div>
+    </section>
+
+    <section class="section" data-section="typography-weights">
+      <h2>字重现状</h2>
+      <div class="legend">按 class 统计，帮助清理不必要的粗细档位。</div>
+      <div id="fontWeightsGrid" class="grid">${renderStaticSection(data.typographyWeights || [], 'fontWeights')}</div>
+    </section>
+
+    <section class="section" data-section="typography-line-heights">
+      <h2>行高现状</h2>
+      <div class="legend">用于识别正文/标题行高是否过散或过挤。</div>
+      <div id="lineHeightsGrid" class="grid">${renderStaticSection(data.typographyLineHeights || [], 'lineHeights')}</div>
+    </section>
+
+    <section class="section" data-section="typography-tracking">
+      <h2>字距现状</h2>
+      <div class="legend">建议减少过多的 tracking 变化，避免风格不一致。</div>
+      <div id="trackingGrid" class="grid">${renderStaticSection(data.typographyTracking || [], 'tracking')}</div>
+    </section>
+
+    <section class="section" data-section="typography-font-family">
+      <h2>字体族现状</h2>
+      <div class="legend">当前目标是统一 Apple 字体栈，便于中英文表现一致。</div>
+      <div id="fontFamiliesGrid" class="grid">${renderStaticSection(data.typographyFamilies || [], 'fontFamilies')}</div>
     </section>
 
     <section class="section" data-section="colors">
@@ -631,7 +1221,24 @@ function buildHtml(data) {
       }
       if (map[token]) return map[token]
       if (token.startsWith('text-[') && token.endsWith(']')) {
-        return token.slice('text-['.length, -1)
+        const value = token.slice('text-['.length, -1).trim()
+        const cssVarMatch = value.match(/^var\(--([^)]+)\)$/)
+        if (cssVarMatch && /(size|font-size|type)/.test(cssVarMatch[1])) return value
+        const isColorLike =
+          value.startsWith('#') ||
+          value.startsWith('rgb(') ||
+          value.startsWith('rgba(') ||
+          value.startsWith('hsl(') ||
+          value.startsWith('hsla(') ||
+          value.startsWith('oklch(') ||
+          value.startsWith('oklab(') ||
+          value.startsWith('lab(') ||
+          value.startsWith('lch(') ||
+          value.startsWith('color(') ||
+          value.includes('gradient(') ||
+          /^[a-z]+$/.test(value)
+        if (isColorLike) return '14px'
+        return value
       }
       return '14px'
     }
@@ -643,6 +1250,81 @@ function buildHtml(data) {
         .replaceAll('>', '&gt;')
         .replaceAll('"', '&quot;')
         .replaceAll("'", '&#39;')
+    }
+
+    function parseArbitraryClassValue(token) {
+      const match = token.match(/^(?:text|bg|border|from|to|via|stroke|fill)-\\[(.+)\\]$/)
+      return match ? match[1].trim() : null
+    }
+
+    function parseTailwindColorClass(token) {
+      const match = token.match(/^(?:text|bg|border|from|to|via|stroke|fill)-([a-z]+)(?:-(\\d{1,3}))?(?:\\/(\\d{1,3}))?$/)
+      if (!match) return null
+      return {
+        colorName: match[1],
+        shade: match[2] || null,
+        opacity: match[3] ? Number(match[3]) : null,
+      }
+    }
+
+    function hexToRgba(hex, opacity) {
+      const raw = hex.replace('#', '')
+      if (!(raw.length === 3 || raw.length === 6)) return hex
+      const normalized = raw.length === 3 ? raw.split('').map((c) => c + c).join('') : raw
+      const r = Number.parseInt(normalized.slice(0, 2), 16)
+      const g = Number.parseInt(normalized.slice(2, 4), 16)
+      const b = Number.parseInt(normalized.slice(4, 6), 16)
+      if (!Number.isFinite(r) || !Number.isFinite(g) || !Number.isFinite(b)) return hex
+      const a = Math.max(0, Math.min(1, opacity / 100))
+      return 'rgba(' + r + ', ' + g + ', ' + b + ', ' + a + ')'
+    }
+
+    function tailwindColorToSwatch(token) {
+      if (token.startsWith('#') || token.startsWith('rgb') || token.startsWith('hsl') || token.startsWith('okl')) {
+        return token
+      }
+
+      const arbitraryValue = parseArbitraryClassValue(token)
+      if (arbitraryValue) {
+        if (arbitraryValue.includes('gradient(')) {
+          const hexMatch = arbitraryValue.match(/#(?:[\\da-fA-F]{3,8})/)
+          return hexMatch ? hexMatch[0] : '#dbe2ea'
+        }
+        return arbitraryValue
+      }
+
+      const parsed = parseTailwindColorClass(token)
+      if (!parsed) return '#dbe2ea'
+
+      const palette = {
+        black: '#000000',
+        white: '#ffffff',
+        gray: '#6b7280',
+        slate: '#64748b',
+        zinc: '#71717a',
+        neutral: '#737373',
+        stone: '#78716c',
+        red: '#ef4444',
+        orange: '#f97316',
+        amber: '#f59e0b',
+        yellow: '#eab308',
+        lime: '#84cc16',
+        green: '#22c55e',
+        emerald: '#10b981',
+        teal: '#14b8a6',
+        cyan: '#06b6d4',
+        sky: '#0ea5e9',
+        blue: '#3b82f6',
+        indigo: '#6366f1',
+        violet: '#8b5cf6',
+        purple: '#a855f7',
+        fuchsia: '#d946ef',
+        pink: '#ec4899',
+        rose: '#f43f5e',
+      }
+      const base = palette[parsed.colorName] || '#dbe2ea'
+      if (parsed.opacity !== null) return hexToRgba(base, parsed.opacity)
+      return base
     }
 
     function usageChips(usages) {
@@ -657,8 +1339,10 @@ function buildHtml(data) {
       const token = item.token
       let preview = ''
       if (section === 'colors') {
-        const color = token.startsWith('text-') || token.startsWith('bg-') || token.startsWith('border-') ? null : token
-        preview = \`<div class="swatch" style="background:\${color || '#e2e8f0'}"></div><div>\${escapeHtml(color || 'Tailwind 颜色类')}</div>\`
+        const isClassColor = /^(?:text|bg|border|from|to|via|stroke|fill)-/.test(token)
+        const color = isClassColor ? tailwindColorToSwatch(token) : token
+        const desc = isClassColor ? \`Tailwind 类: \${token}\` : token
+        preview = \`<div class="swatch" style="background:\${escapeHtml(color)}"></div><div>\${escapeHtml(desc)}</div>\`
       } else if (section === 'shadows') {
         const shadow = normalizeShadow(token)
         preview = \`<div class="shadow-box" style="box-shadow:\${escapeHtml(shadow)}"></div><div>阴影预览</div>\`
@@ -695,13 +1379,6 @@ function buildHtml(data) {
     }
 
     function render() {
-      renderSection('typographyGrid', DATA.typography, 'typography')
-      renderSection('colorsGrid', DATA.colors, 'colors')
-      renderSection('spacingGrid', DATA.spacing, 'spacing')
-      renderSection('radiusGrid', DATA.radius, 'radius')
-      renderSection('shadowsGrid', DATA.shadows, 'shadows')
-      renderSection('iconsGrid', DATA.icons, 'icons')
-
       const keyword = state.keyword.trim().toLowerCase()
       let visible = 0
       const allCards = document.querySelectorAll('.card')
@@ -715,19 +1392,19 @@ function buildHtml(data) {
       document.getElementById('stats').textContent = \`总项数 \${DATA.summary.totalTokens} · 当前显示 \${visible}\`
 
       document.querySelectorAll('.usage-chip').forEach((chip) => {
-        chip.addEventListener('mouseenter', (event) => {
+        chip.onmouseenter = (event) => {
           const tip = event.currentTarget.getAttribute('data-tip') || ''
           const img = event.currentTarget.getAttribute('data-img') || ''
           tooltip.innerHTML = (img ? \`<img src="\${img}" alt="参考定位缩略图" />\` : '') + escapeHtml(tip)
           tooltip.style.display = 'block'
-        })
-        chip.addEventListener('mousemove', (event) => {
+        }
+        chip.onmousemove = (event) => {
           tooltip.style.left = \`\${event.clientX + 14}px\`
           tooltip.style.top = \`\${event.clientY + 14}px\`
-        })
-        chip.addEventListener('mouseleave', () => {
+        }
+        chip.onmouseleave = () => {
           tooltip.style.display = 'none'
-        })
+        }
       })
     }
 
@@ -752,6 +1429,7 @@ function main() {
     lineHeights: createBucket(),
     letterSpacings: createBucket(),
     fontFamilies: createBucket(),
+    semanticTypography: createBucket(),
     spacing: createBucket(),
     radius: createBucket(),
     shadows: createBucket(),
@@ -760,6 +1438,7 @@ function main() {
 
   for (const absoluteFile of files) {
     const relFile = path.relative(ROOT, absoluteFile)
+    const isCssFile = relFile.endsWith('.css')
     const source = fs.readFileSync(absoluteFile, 'utf8')
     const lines = source.split(/\r?\n/)
 
@@ -778,14 +1457,43 @@ function main() {
       const lineNo = idx + 1
       const usage = { file: relFile, line: lineNo, snippet: safeSnippet(line) }
 
-      collectAllMatches(line, [regex.hexColor, regex.colorFunc, regex.twColorArbitrary, regex.twColorScale]).forEach((token) => {
+      collectAllMatches(line, [regex.hexColor, regex.colorFunc, regex.twColorScale]).forEach((token) => {
         addUsage(buckets.colors, token, usage)
       })
+      collectAllMatches(line, [regex.twColorArbitrary]).forEach((token) => {
+        if (isArbitraryColorClass(token)) {
+          addUsage(buckets.colors, token, usage)
+        }
+      })
 
-      collectAllMatches(line, [regex.twFontSize]).forEach((token) => addUsage(buckets.fontSizes, token, usage))
+      collectAllMatches(line, [regex.twFontSize]).forEach((token) => {
+        if (token.startsWith('text-[') && token.endsWith(']')) {
+          const arbitraryValue = token.slice('text-['.length, -1)
+          if (!isArbitraryTextSizeValue(arbitraryValue)) return
+        }
+        addUsage(buckets.fontSizes, token, usage)
+      })
+      const cssFontSizeMatches = [...line.matchAll(regex.cssFontSize)]
+      cssFontSizeMatches.forEach((match) => {
+        const value = normalizeToken(match[1]).replace(/^['"]|['"]$/g, '')
+        if (!value) return
+        const normalized = /^-?\d+(\.\d+)?$/.test(value) ? `${value}px` : value
+        addUsage(buckets.fontSizes, `font-size:${normalized}`, usage)
+      })
+      const jsFontSizeMatches = [...line.matchAll(regex.jsFontSize)]
+      jsFontSizeMatches.forEach((match) => {
+        const value = normalizeToken(match[1]).replace(/^['"]|['"]$/g, '')
+        if (!value) return
+        const normalized = /^-?\d+(\.\d+)?$/.test(value) ? `${value}px` : value
+        addUsage(buckets.fontSizes, `font-size:${normalized}`, usage)
+      })
       collectAllMatches(line, [regex.twFontWeight]).forEach((token) => addUsage(buckets.fontWeights, token, usage))
       collectAllMatches(line, [regex.twLineHeight]).forEach((token) => addUsage(buckets.lineHeights, token, usage))
       collectAllMatches(line, [regex.twTracking]).forEach((token) => addUsage(buckets.letterSpacings, token, usage))
+      if (!isCssFile) {
+        collectAllMatches(line, [/\btypo-(?:section-heading|title-heading|card-title-bold|card-title|body-emphasis|body|link|micro)\b/g])
+          .forEach((token) => addUsage(buckets.semanticTypography, token, usage))
+      }
 
       const cssFamilies = collectAllMatches(line, [regex.cssFontFamily, regex.jsFontFamilySingle, regex.jsFontFamilyDouble])
       cssFamilies.forEach((match) => {
@@ -827,12 +1535,25 @@ function main() {
     })
   }
 
-  const typography = [
-    ...sortEntries(buckets.fontSizes),
-    ...sortEntries(buckets.fontWeights),
-    ...sortEntries(buckets.lineHeights),
-    ...sortEntries(buckets.letterSpacings),
-    ...sortEntries(buckets.fontFamilies),
+  const typographySizesRaw = sortEntries(buckets.fontSizes)
+  const typographyWeights = sortEntries(buckets.fontWeights)
+  const typographyLineHeights = sortEntries(buckets.lineHeights)
+  const typographyTracking = sortEntries(buckets.letterSpacings)
+  const typographyFamilies = sortEntries(buckets.fontFamilies)
+  const semanticTypeMap = buckets.semanticTypography
+  const standardPxSet = new Set(
+    Object.values(TYPO_SIZE_VARS)
+      .map((size) => formatPxRemLabel(size).px)
+      .filter((value) => value !== null)
+  )
+  const typographySizes = enrichTypographySizeEntries(typographySizesRaw, standardPxSet)
+  const typographyStandard = buildTypographyStandardEntries(semanticTypeMap)
+  const typographyAll = [
+    ...typographySizes,
+    ...typographyWeights,
+    ...typographyLineHeights,
+    ...typographyTracking,
+    ...typographyFamilies,
   ]
 
   const result = {
@@ -841,14 +1562,22 @@ function main() {
     summary: {
       filesScanned: files.length,
       totalTokens:
-        typography.length +
+        typographyAll.length +
+        typographyStandard.length +
         buckets.colors.size +
         buckets.spacing.size +
         buckets.radius.size +
         buckets.shadows.size +
         buckets.icons.size,
     },
-    typography,
+    typographyStats: computeTypographyStats(typographySizes),
+    typographyStandard,
+    typographySizes,
+    typographyWeights,
+    typographyLineHeights,
+    typographyTracking,
+    typographyFamilies,
+    typography: typographyAll,
     colors: sortEntries(buckets.colors),
     spacing: sortEntries(buckets.spacing),
     radius: sortEntries(buckets.radius),

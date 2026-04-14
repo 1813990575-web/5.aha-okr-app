@@ -726,7 +726,7 @@ export function seedData(): void {
       status: 0,
       sort_order: 0,
       total_focus_time: 0,
-      color: '#007AFF',
+      color: 'blue',
     })
     
     if (!o1) {

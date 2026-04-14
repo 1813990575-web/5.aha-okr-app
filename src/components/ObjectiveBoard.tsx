@@ -2,10 +2,11 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useDndMonitor } from '@dnd-kit/core'
 import { SortableContext, horizontalListSortingStrategy, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { ArrowUp, Check, Eye, ImagePlus, MoreHorizontal, Plus, ShoppingCart, X } from 'lucide-react'
+import { ArrowUp, Check, Eye, ImagePlus, MoreHorizontal, Plus, X } from 'lucide-react'
 import type { DailyTask, Item } from '../store/index'
-import { COLOR_OPTIONS } from './Sidebar'
+import { getObjectiveColorOption } from './Sidebar'
 import { MainBoard } from './MainBoard'
+import { TodoThreadPopover, getLatestTodoThreadPreview, subscribeTodoThreadUpdates } from './daily/TodoThreadPopover'
 
 interface ObjectiveBoardProps {
   objective: { id: string; title: string; color?: string | null }
@@ -22,6 +23,7 @@ interface ObjectiveBoardProps {
   onReorderTasks?: (orderedTaskIds: string[]) => void | Promise<void>
   isPastDate?: boolean
   onObjectiveChanged?: () => void | Promise<void>
+  onSwitchObjectiveBoard?: (objective: { id: string; title: string; color?: string | null }) => void
   refreshTrigger?: number
   dragNotice?: string | null
 }
@@ -37,36 +39,75 @@ interface VisionMessage {
   imageDataUrls: string[]
 }
 
+const KR_CORE_BASE_PALETTE = {
+  pureWhite: '#ffffff',
+  lightGray: '#f5f5f7',
+  darkSurface: '#272729',
+  nearWhite: '#f6f6f6',
+  border: '#e2ddd7',
+  borderSoft: '#e5e5e5',
+  badgeBg: '#ebe6e1',
+  badgeText: '#6b625b',
+  bodySoft: '#f5f5f7',
+  bodyWarm: '#f8f7f5',
+} as const
+
+const KR_HEADER_FONT_FAMILY = '"Arial Rounded MT Bold", var(--font-apple)'
+
 const KR_CARD_THEMES = [
   {
-    shell: 'border-[#e4dcff] bg-[#f8f6ff]',
-    top: 'bg-[linear-gradient(180deg,#efe9ff,#e8e1ff)]',
+    shell: 'border-[#e5e5e5]',
+    shellStyle: {
+      backgroundColor: KR_CORE_BASE_PALETTE.lightGray,
+    },
+    topStyle: {
+      backgroundColor: KR_CORE_BASE_PALETTE.darkSurface,
+    },
+    bodyStyle: {
+      backgroundColor: KR_CORE_BASE_PALETTE.bodySoft,
+    },
     badgeStyle: {
-      backgroundColor: 'rgba(130,104,231,0.2)',
-      color: '#5a43b8',
+      backgroundColor: KR_CORE_BASE_PALETTE.badgeBg,
+      color: KR_CORE_BASE_PALETTE.badgeText,
     },
   },
   {
-    shell: 'border-[#ccead9] bg-[#f2fff8]',
-    top: 'bg-[linear-gradient(180deg,#daf4e7,#d1efdf)]',
+    shell: 'border-[#e5e5e5]',
+    shellStyle: {
+      backgroundColor: KR_CORE_BASE_PALETTE.lightGray,
+    },
+    topStyle: {
+      backgroundColor: KR_CORE_BASE_PALETTE.darkSurface,
+    },
+    bodyStyle: {
+      backgroundColor: KR_CORE_BASE_PALETTE.bodySoft,
+    },
     badgeStyle: {
-      backgroundColor: 'rgba(53,165,109,0.2)',
-      color: '#287a52',
+      backgroundColor: KR_CORE_BASE_PALETTE.badgeBg,
+      color: KR_CORE_BASE_PALETTE.badgeText,
     },
   },
   {
-    shell: 'border-[#efe7b2] bg-[#fffde9]',
-    top: 'bg-[linear-gradient(180deg,#f7f1c4,#f1e9b3)]',
+    shell: 'border-[#e5e5e5]',
+    shellStyle: {
+      backgroundColor: KR_CORE_BASE_PALETTE.lightGray,
+    },
+    topStyle: {
+      backgroundColor: KR_CORE_BASE_PALETTE.darkSurface,
+    },
+    bodyStyle: {
+      backgroundColor: KR_CORE_BASE_PALETTE.bodySoft,
+    },
     badgeStyle: {
-      backgroundColor: 'rgba(183,154,37,0.22)',
-      color: '#7d6712',
+      backgroundColor: KR_CORE_BASE_PALETTE.badgeBg,
+      color: KR_CORE_BASE_PALETTE.badgeText,
     },
   },
 ] as const
 
 function getColorHex(colorKey?: string | null): string {
-  if (!colorKey) return '#ff5a4f'
-  return COLOR_OPTIONS.find((option) => option.key === colorKey)?.textColor || '#ff5a4f'
+  if (!colorKey) return '#3860BE'
+  return getObjectiveColorOption(colorKey)?.textColor || '#3860BE'
 }
 
 function sortByOrder<T extends { sort_order: number }>(items: T[]): T[] {
@@ -117,6 +158,7 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
   onReorderTasks,
   isPastDate,
   onObjectiveChanged,
+  onSwitchObjectiveBoard,
   refreshTrigger,
   dragNotice,
   onAddToDailyTasks: _onAddToDailyTasks,
@@ -130,11 +172,18 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
   const [boardMenuPosition, setBoardMenuPosition] = useState<{ x: number; y: number } | null>(null)
   const [activeKrSortId, setActiveKrSortId] = useState<string | null>(null)
   const [activeTodoSortId, setActiveTodoSortId] = useState<string | null>(null)
+  const [highlightedTodoId, setHighlightedTodoId] = useState<string | null>(null)
+  const [highlightedFloatingTaskId, setHighlightedFloatingTaskId] = useState<string | null>(null)
   const [isFloatingPanelOpen, setIsFloatingPanelOpen] = useState(false)
   const [isFloatingPanelMounted, setIsFloatingPanelMounted] = useState(false)
   const [isVisionDialogOpen, setIsVisionDialogOpen] = useState(false)
   const [visionMessages, setVisionMessages] = useState<VisionMessage[]>(VISION_INITIAL_MESSAGES)
   const floatingPanelCloseTimerRef = useRef<number | null>(null)
+  const todoHighlightTimerRef = useRef<number | null>(null)
+  const floatingTaskHighlightTimerRef = useRef<number | null>(null)
+  const boardScrollRef = useRef<HTMLDivElement | null>(null)
+  const todoItemRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const pendingTodoFocusRef = useRef<string | null>(null)
 
   const loadItems = useCallback(async ({ showLoading = true }: { showLoading?: boolean } = {}) => {
     try {
@@ -231,10 +280,17 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
   const saveTitle = useCallback(async (id: string, value: string) => {
     const nextTitle = value.trim()
     setEditingTarget(null)
-    if (!nextTitle) return
+    if (!nextTitle) {
+      const currentItem = items.find((item) => item.id === id)
+      if (currentItem?.type === 'TODO') {
+        await window.electronAPI.database.deleteItem(id)
+        await refreshAfterMutation()
+      }
+      return
+    }
     await window.electronAPI.database.updateItem(id, { title: nextTitle })
     await refreshAfterMutation()
-  }, [refreshAfterMutation])
+  }, [items, refreshAfterMutation])
 
   const createKr = useCallback(async () => {
     const newId = crypto.randomUUID()
@@ -257,14 +313,21 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
       id: newId,
       type: 'TODO',
       parent_id: krId,
-      title: '新待办',
+      title: '',
       content: '',
       status: 0,
       total_focus_time: 0,
     })
     await refreshAfterMutation()
-    setEditingTarget({ id: newId, kind: 'todo', value: '新待办' })
+    setEditingTarget({ id: newId, kind: 'todo', value: '' })
   }, [refreshAfterMutation])
+
+  const submitTodoAndCreateNext = useCallback(async (todoId: string, krId: string, value: string) => {
+    const nextTitle = value.trim()
+    await saveTitle(todoId, value)
+    if (!nextTitle) return
+    await createTodo(krId)
+  }, [createTodo, saveTitle])
 
   const toggleTodo = useCallback(async (todo: Item) => {
     const nextStatus = todo.status === 1 ? 0 : 1
@@ -316,8 +379,123 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
       if (floatingPanelCloseTimerRef.current) {
         window.clearTimeout(floatingPanelCloseTimerRef.current)
       }
+      if (todoHighlightTimerRef.current) {
+        window.clearTimeout(todoHighlightTimerRef.current)
+      }
+      if (floatingTaskHighlightTimerRef.current) {
+        window.clearTimeout(floatingTaskHighlightTimerRef.current)
+      }
     }
   }, [])
+
+  const highlightFloatingTask = useCallback((taskId: string) => {
+    setHighlightedFloatingTaskId(taskId)
+    if (floatingTaskHighlightTimerRef.current) {
+      window.clearTimeout(floatingTaskHighlightTimerRef.current)
+    }
+    floatingTaskHighlightTimerRef.current = window.setTimeout(() => {
+      setHighlightedFloatingTaskId((current) => (current === taskId ? null : current))
+      floatingTaskHighlightTimerRef.current = null
+    }, 1350)
+
+    window.requestAnimationFrame(() => {
+      const element = document.querySelector(`[data-mainboard-task-id="${taskId}"]`)
+      if (element instanceof HTMLElement) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }
+    })
+  }, [])
+
+  const focusTodoInBoard = useCallback((todoId: string) => {
+    setHighlightedTodoId(todoId)
+    if (todoHighlightTimerRef.current) {
+      window.clearTimeout(todoHighlightTimerRef.current)
+    }
+    todoHighlightTimerRef.current = window.setTimeout(() => {
+    setHighlightedTodoId((current) => (current === todoId ? null : current))
+      todoHighlightTimerRef.current = null
+    }, 1350)
+
+    window.requestAnimationFrame(() => {
+      const scrollContainer = boardScrollRef.current
+      const element = todoItemRefs.current.get(todoId)
+      if (!element || !scrollContainer) return
+
+      const containerRect = scrollContainer.getBoundingClientRect()
+      const elementRect = element.getBoundingClientRect()
+      const safeVisibleRight = containerRect.right - FLOATING_PANEL_SAFE_RIGHT_PADDING - 40
+      const safeVisibleLeft = containerRect.left + 36
+
+      const currentScrollLeft = scrollContainer.scrollLeft
+      let nextScrollLeft = currentScrollLeft
+
+      if (elementRect.right > safeVisibleRight) {
+        nextScrollLeft += elementRect.right - safeVisibleRight
+      }
+
+      if (elementRect.left < safeVisibleLeft) {
+        nextScrollLeft -= safeVisibleLeft - elementRect.left
+      }
+
+      const maxScrollLeft = scrollContainer.scrollWidth - scrollContainer.clientWidth
+      const clampedScrollLeft = Math.max(0, Math.min(nextScrollLeft, Math.max(0, maxScrollLeft)))
+
+      scrollContainer.scrollTo({
+        left: clampedScrollLeft,
+        behavior: 'smooth',
+      })
+
+      element.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+        inline: 'nearest',
+      })
+    })
+  }, [])
+
+  const handleBoardTodoSelect = useCallback((todo: Item) => {
+    const linkedTask = tasks.find((task) => (task.sourceItemId ?? task.linkedGoalId) === todo.id)
+    if (!linkedTask) return
+    highlightFloatingTask(linkedTask.id)
+  }, [highlightFloatingTask, tasks])
+
+  const handleFloatingPanelSetActiveObjective = useCallback((itemId: string) => {
+    const targetTodo = items.find((item) => item.id === itemId && item.type === 'TODO') || null
+    if (!targetTodo) return
+
+    const targetKr = items.find((item) => item.id === targetTodo.parent_id && item.type === 'KR') || null
+    if (!targetKr) return
+
+    const targetObjective = items.find((item) => item.id === targetKr.parent_id && item.type === 'O') || null
+    if (!targetObjective) return
+
+    pendingTodoFocusRef.current = targetTodo.id
+
+    if (targetObjective.id !== objective.id) {
+      onSwitchObjectiveBoard?.({
+        id: targetObjective.id,
+        title: targetObjective.title,
+        color: targetObjective.color ?? null,
+      })
+      return
+    }
+
+    focusTodoInBoard(targetTodo.id)
+  }, [focusTodoInBoard, items, objective.id, onSwitchObjectiveBoard])
+
+  useEffect(() => {
+    const pendingTodoId = pendingTodoFocusRef.current
+    if (!pendingTodoId) return
+
+    const targetTodo = items.find((item) => item.id === pendingTodoId && item.type === 'TODO') || null
+    if (!targetTodo) return
+
+    const targetKr = items.find((item) => item.id === targetTodo.parent_id && item.type === 'KR') || null
+    if (!targetKr || targetKr.parent_id !== objective.id) return
+
+    pendingTodoFocusRef.current = null
+    focusTodoInBoard(targetTodo.id)
+  }, [focusTodoInBoard, items, objective.id])
 
   const openFloatingPanel = useCallback(() => {
     if (floatingPanelCloseTimerRef.current) {
@@ -416,6 +594,34 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
 
   return (
     <div className="relative flex h-full flex-col overflow-hidden bg-white text-[#2e3137]">
+      <style>{`
+        @keyframes objective-board-linked-pulse {
+          0%, 100% {
+            background-color: rgba(246,70,93,0.05);
+            border-color: rgba(246,70,93,0.34);
+          }
+          50% {
+            background-color: rgba(246,70,93,0.11);
+            border-color: rgba(246,70,93,0.48);
+          }
+        }
+        .objective-board-linked-pulse {
+          animation: objective-board-linked-pulse 420ms ease-in-out 2;
+        }
+        @keyframes objective-board-toast-drop {
+          0% {
+            opacity: 0;
+            transform: translate(-50%, -14px) scale(0.96);
+          }
+          100% {
+            opacity: 1;
+            transform: translate(-50%, 0) scale(1);
+          }
+        }
+        .objective-board-toast-drop {
+          animation: objective-board-toast-drop 220ms cubic-bezier(0.22, 1, 0.36, 1);
+        }
+      `}</style>
       <div className="traffic-light-space flex-shrink-0" />
 
       <div className="px-7 pb-8 pt-2">
@@ -429,13 +635,15 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
               if (e.key === 'Enter') void saveTitle(boardObjective.id, editingTarget.value)
               if (e.key === 'Escape') setEditingTarget(null)
             }}
-            className="w-[520px] max-w-full border-none p-0 text-[30px] font-extrabold leading-[1.08] tracking-[-0.03em] text-[#1f2530] outline-none"
+            className="typo-title-heading w-[520px] max-w-full border-none p-0 tracking-[-0.02em] outline-none"
+            style={{ color: activeColor }}
           />
         ) : (
           <button
             type="button"
             onDoubleClick={() => setEditingTarget({ id: boardObjective.id, kind: 'objective', value: boardObjective.title })}
-            className="w-full text-left text-[30px] font-extrabold leading-[1.08] tracking-[-0.03em] text-[#1f2530]"
+            className="typo-title-heading w-full text-left tracking-[-0.02em]"
+            style={{ color: activeColor }}
           >
             {boardObjective.title}
           </button>
@@ -443,7 +651,7 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
         <button
           type="button"
           onClick={openVisionDialog}
-          className="mt-2 flex w-full max-w-[760px] items-start gap-2 rounded-[10px] px-1 py-0.5 text-left text-[15px] leading-[1.55] text-[#6d7482] transition-colors hover:bg-black/[0.03] hover:text-[#575f6f]"
+          className="mt-2 flex w-full max-w-[760px] items-start gap-2 rounded-[10px] px-1 py-0.5 text-left text-[14px] leading-[1.55] text-[#6d7482] transition-colors hover:bg-black/[0.03] hover:text-[#575f6f]"
         >
           <Eye className="mt-[2px] h-4 w-4 flex-shrink-0 text-[#8a91a0]" strokeWidth={1.9} />
           <span className="min-w-0 flex-1 truncate">{latestVisionPreview}</span>
@@ -451,6 +659,7 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
       </div>
 
       <div
+        ref={boardScrollRef}
         className="relative min-h-0 flex-1 overflow-x-auto overflow-y-auto px-6 pb-8"
         onContextMenu={(e) => {
           const target = e.target as HTMLElement
@@ -475,12 +684,16 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
                 isSorting={activeKrSortId === `objective-board-kr:${kr.id}`}
                 openKrMenuId={openKrMenuId}
                 activeTodoSortId={activeTodoSortId}
+                highlightedTodoId={highlightedTodoId}
+                todoItemRefs={todoItemRefs}
                 onEditTargetChange={setEditingTarget}
                 onSaveTitle={saveTitle}
                 onToggleKrMenu={setOpenKrMenuId}
                 onDeleteKr={deleteItem}
                 onCreateTodo={createTodo}
+                onSelectTodo={handleBoardTodoSelect}
                 onToggleTodo={toggleTodo}
+                onSubmitTodoAndCreateNext={submitTodoAndCreateNext}
               />
             ))}
           </div>
@@ -498,7 +711,7 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
                 setBoardMenuPosition(null)
                 void createKr()
               }}
-              className="flex w-full items-center gap-2 rounded-[10px] px-3 py-2 text-left text-[13px] font-medium text-[#3a3e45] transition-colors hover:bg-[#f5f6f8]"
+              className="flex w-full items-center gap-2 rounded-[10px] px-3 py-2 text-left text-[14px] font-medium text-[#3a3e45] transition-colors hover:bg-[#f5f6f8]"
             >
               <Plus className="h-4 w-4" strokeWidth={2} />
               添加分栏
@@ -516,12 +729,18 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
 
       {isFloatingPanelMounted ? (
         <div
-          className={`fixed inset-y-4 right-4 z-[220] flex w-[460px] max-w-[calc(100vw-28px)] flex-col overflow-hidden rounded-[18px] border border-black/[0.08] bg-white shadow-[0_30px_72px_rgba(15,23,42,0.26)] transition-all duration-300 ${
+          className={`fixed inset-y-6 right-6 z-[220] flex w-[460px] max-w-[calc(100vw-36px)] flex-col overflow-hidden rounded-[18px] border border-white/58 transition-all duration-300 ${
             isFloatingPanelOpen
               ? 'translate-y-0 scale-100 opacity-100 pointer-events-auto'
               : 'translate-y-8 scale-[0.18] opacity-0 pointer-events-none'
           }`}
-          style={{ transformOrigin: 'calc(100% - 20px) calc(100% - 20px)' }}
+          style={{
+            transformOrigin: 'calc(100% - 20px) calc(100% - 20px)',
+            background: 'linear-gradient(180deg, rgba(255,255,255,0.34) 0%, rgba(242,242,242,0.20) 100%)',
+            backdropFilter: 'blur(28px) saturate(170%)',
+            WebkitBackdropFilter: 'blur(28px) saturate(170%)',
+            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.72), 0 30px 72px rgba(15,23,42,0.20)',
+          }}
         >
           <button
             type="button"
@@ -530,7 +749,7 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
               event.stopPropagation()
             }}
             onClick={closeFloatingPanel}
-            className="app-no-drag absolute right-3 top-3 z-[240] flex h-8 w-8 items-center justify-center rounded-md bg-white/85 text-[#7f8793] shadow-[0_4px_14px_rgba(15,23,42,0.1)] transition-colors hover:bg-white"
+            className="app-no-drag absolute right-3 top-3 z-[240] flex h-8 w-8 items-center justify-center text-[#7f8793] transition-colors hover:text-[#5f6673]"
             aria-label="关闭面板"
           >
             <X className="h-4 w-4" />
@@ -546,20 +765,23 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
               onDeleteTask={onDeleteTask}
               onUpdateTaskContent={onUpdateTaskContent}
               onMoveTaskToToday={onMoveTaskToToday}
+              onSetActiveObjective={handleFloatingPanelSetActiveObjective}
               isPastDate={isPastDate}
+              relationHighlightedTaskId={highlightedFloatingTaskId}
               onReorderTasks={onReorderTasks}
               onExecutionItemsChanged={onObjectiveChanged}
               okrRefreshTrigger={refreshTrigger}
               dndScope="floating-cart"
               dropZoneId="floating-cart-drop-zone"
-              className="h-full bg-white"
+              className="h-full"
               taskComposerMode="chat-bottom"
               enableHeaderDragRegion={false}
+              glassMode
             />
           </div>
           {dragNotice ? (
-            <div className="pointer-events-none absolute bottom-16 left-1/2 z-40 -translate-x-1/2">
-              <div className="rounded-full border border-black/8 bg-white/96 px-4 py-2 text-[13px] font-medium text-[#4c5461] shadow-[0_10px_24px_rgba(15,23,42,0.14)]">
+            <div className="pointer-events-none absolute left-1/2 top-[22%] z-40 -translate-x-1/2 objective-board-toast-drop">
+              <div className="rounded-full border border-white/10 bg-[rgba(39,39,41,0.92)] px-4 py-2 text-[14px] font-medium text-white shadow-[0_16px_32px_rgba(15,23,42,0.24)] backdrop-blur-xl">
                 {dragNotice}
               </div>
             </div>
@@ -570,12 +792,12 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
       <button
         type="button"
         onClick={openFloatingPanel}
-        aria-label={isFloatingPanelOpen ? '关闭承载面板' : '打开承载面板'}
-        className={`absolute bottom-6 right-6 z-[210] flex h-14 w-14 items-center justify-center rounded-full border border-white/70 bg-[linear-gradient(180deg,#ffffff,#eef2f7)] text-[#3a4352] shadow-[0_14px_28px_rgba(15,23,42,0.16)] transition-all duration-200 hover:scale-[1.03] active:scale-[0.98] ${
+        aria-label={isFloatingPanelOpen ? '关闭今日待办' : '打开今日待办'}
+        className={`absolute bottom-10 right-10 z-[210] flex h-[68px] w-[68px] items-center justify-center rounded-full border border-white/70 bg-[linear-gradient(180deg,#ffffff,#eef2f7)] text-[#272729] shadow-[0_16px_32px_rgba(15,23,42,0.16)] transition-all duration-200 hover:scale-[1.03] active:scale-[0.98] ${
           isFloatingPanelMounted ? 'pointer-events-none scale-90 opacity-0' : 'opacity-100'
         }`}
       >
-        <ShoppingCart className="h-[22px] w-[22px]" strokeWidth={2} />
+        <span className="select-none text-[28px] font-bold leading-none tracking-[-0.04em]">今</span>
       </button>
 
     </div>
@@ -698,7 +920,7 @@ const VisionDialog: React.FC<VisionDialogProps> = React.memo(({ open, messages, 
       >
         <div className="flex items-center justify-between border-b border-black/[0.06] bg-[linear-gradient(180deg,#ffffff,#f8f8f7)] px-6 py-4">
           <div>
-            <div className="text-[15px] font-semibold text-[#262d38]">愿景记录</div>
+            <div className="typo-body-emphasis text-[#262d38]">愿景记录</div>
             <div className="text-[12px] text-[#8a909c]">写给自己的阶段性想法与提醒</div>
           </div>
           <button
@@ -718,7 +940,7 @@ const VisionDialog: React.FC<VisionDialogProps> = React.memo(({ open, messages, 
             <div className="space-y-8">
               {messages.map((message) => (
                 <article key={message.id} className="grid grid-cols-[108px_minmax(0,1fr)] items-start gap-x-3">
-                  <div className="flex items-center gap-1.5 pt-1 text-[13px] text-black/32">
+                  <div className="flex items-center gap-1.5 pt-1 text-[14px] text-black/32">
                     <span className="h-2.5 w-2.5 rounded-full bg-[#cf9a61] shadow-[0_0_0_1px_rgba(207,154,97,0.14)]" />
                     <span>{formatVisionDateTime(message.createdAt)}</span>
                   </div>
@@ -755,7 +977,7 @@ const VisionDialog: React.FC<VisionDialogProps> = React.memo(({ open, messages, 
               }}
               rows={1}
               placeholder="现在的想法是..."
-              className="w-full resize-none border-none bg-transparent text-[15px] leading-7 text-[#202631] outline-none placeholder:text-black/28"
+              className="w-full resize-none border-none bg-transparent text-[14px] leading-7 text-[#202631] outline-none placeholder:text-black/28"
             />
 
             {draftImages.length > 0 ? (
@@ -780,7 +1002,7 @@ const VisionDialog: React.FC<VisionDialogProps> = React.memo(({ open, messages, 
               <button
                 type="button"
                 onClick={() => imageInputRef.current?.click()}
-                className="inline-flex h-9 items-center gap-2 rounded-full border border-black/[0.08] px-3 text-[13px] font-medium text-[#6f7684] transition-colors hover:bg-black/[0.03]"
+                className="inline-flex h-9 items-center gap-2 rounded-full border border-black/[0.08] px-3 text-[14px] font-medium text-[#6f7684] transition-colors hover:bg-black/[0.03]"
               >
                 <ImagePlus className="h-4 w-4" strokeWidth={1.9} />
                 添加照片
@@ -842,7 +1064,7 @@ const VisionMessageText: React.FC<{ text: string; resizeVersion: number }> = ({ 
   return (
     <div className="relative">
       <p
-        className="whitespace-pre-wrap text-[16px] font-semibold leading-[1.5] text-[#232a36]"
+        className="whitespace-pre-wrap text-[17px] font-semibold leading-[1.5] text-[#232a36]"
         style={!expanded ? { display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden' } : undefined}
       >
         {text}
@@ -850,7 +1072,7 @@ const VisionMessageText: React.FC<{ text: string; resizeVersion: number }> = ({ 
       <p
         ref={measureRef}
         aria-hidden="true"
-        className="pointer-events-none absolute left-0 top-0 -z-10 w-full whitespace-pre-wrap text-[16px] font-semibold leading-[1.5] opacity-0"
+        className="pointer-events-none absolute left-0 top-0 -z-10 w-full whitespace-pre-wrap text-[17px] font-semibold leading-[1.5] opacity-0"
       >
         {text}
       </p>
@@ -858,7 +1080,7 @@ const VisionMessageText: React.FC<{ text: string; resizeVersion: number }> = ({ 
         <button
           type="button"
           onClick={() => setExpanded((prev) => !prev)}
-          className="mt-1 text-[13px] font-medium text-[#7c8594] transition-colors hover:text-[#5c6574]"
+          className="mt-1 text-[14px] font-medium text-[#7c8594] transition-colors hover:text-[#5c6574]"
         >
           {expanded ? '收起' : '展开'}
         </button>
@@ -873,8 +1095,12 @@ interface SortableTodoCardProps {
   dragColor?: string | null
   editingTarget: EditingTarget
   isSorting: boolean
+  isHighlighted: boolean
+  todoItemRef?: (element: HTMLDivElement | null) => void
+  onSelectTodo?: (todo: Item) => void
   onToggleTodo: (todo: Item) => void | Promise<void>
   onSaveTitle: (id: string, value: string) => void | Promise<void>
+  onSubmitTodoAndCreateNext: (todoId: string, krId: string, value: string) => void | Promise<void>
   onEditTargetChange: React.Dispatch<React.SetStateAction<EditingTarget>>
 }
 
@@ -890,12 +1116,16 @@ interface SortableKrColumnProps {
   isSorting: boolean
   openKrMenuId: string | null
   activeTodoSortId: string | null
+  highlightedTodoId: string | null
+  todoItemRefs: React.MutableRefObject<Map<string, HTMLDivElement>>
+  onSelectTodo?: (todo: Item) => void
   onEditTargetChange: React.Dispatch<React.SetStateAction<EditingTarget>>
   onSaveTitle: (id: string, value: string) => void | Promise<void>
   onToggleKrMenu: React.Dispatch<React.SetStateAction<string | null>>
   onDeleteKr: (id: string) => void | Promise<void>
   onCreateTodo: (krId: string) => void | Promise<void>
   onToggleTodo: (todo: Item) => void | Promise<void>
+  onSubmitTodoAndCreateNext: (todoId: string, krId: string, value: string) => void | Promise<void>
 }
 
 const SortableKrColumn: React.FC<SortableKrColumnProps> = ({
@@ -906,12 +1136,16 @@ const SortableKrColumn: React.FC<SortableKrColumnProps> = ({
   isSorting,
   openKrMenuId,
   activeTodoSortId,
+  highlightedTodoId,
+  todoItemRefs,
+  onSelectTodo,
   onEditTargetChange,
   onSaveTitle,
   onToggleKrMenu,
   onDeleteKr,
   onCreateTodo,
   onToggleTodo,
+  onSubmitTodoAndCreateNext,
 }) => {
   const sortableId = `objective-board-kr:${kr.id}`
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -949,15 +1183,39 @@ const SortableKrColumn: React.FC<SortableKrColumnProps> = ({
         className={`relative overflow-hidden rounded-[16px] border p-0 shadow-[0_18px_40px_rgba(15,23,42,0.08)] ${cardTheme.shell} ${
           isDragging || isSorting ? 'shadow-[0_22px_48px_rgba(15,23,42,0.16)]' : ''
         }`}
+        style={cardTheme.shellStyle}
       >
-        <div className={`px-4 pb-4 pt-4 ${cardTheme.top}`}>
-          <div className="mb-3 flex items-center justify-between">
-            <span
-              className="rounded-full px-2.5 py-1 text-[11px] font-semibold tracking-[0.02em]"
-              style={cardTheme.badgeStyle}
-            >
-              关键结果
-            </span>
+        <div className="px-4 pb-3 pt-3" style={cardTheme.topStyle}>
+          <div className="flex items-center justify-between gap-2">
+      <div className="min-w-0 flex-1">
+              {editingTarget?.id === kr.id ? (
+                <input
+                  autoFocus
+                  value={editingTarget.value}
+                  onChange={(e) => onEditTargetChange({ ...editingTarget, value: e.target.value })}
+                  onBlur={() => void onSaveTitle(kr.id, editingTarget.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void onSaveTitle(kr.id, editingTarget.value)
+                    if (e.key === 'Escape') onEditTargetChange(null)
+                  }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  className="w-full border-none bg-transparent p-0 text-[17px] font-bold tracking-[-0.01em] text-white outline-none"
+                  style={{ fontFamily: KR_HEADER_FONT_FAMILY }}
+                />
+              ) : (
+                <button
+                  type="button"
+                  onDoubleClick={(e) => {
+                    e.stopPropagation()
+                    onEditTargetChange({ id: kr.id, kind: 'kr', value: kr.title })
+                  }}
+                  className="w-full truncate text-left text-[17px] font-bold tracking-[-0.01em] text-white"
+                  style={{ fontFamily: KR_HEADER_FONT_FAMILY }}
+                >
+                  {kr.title}
+                </button>
+              )}
+            </div>
             <div className="relative">
               <button
                 type="button"
@@ -965,7 +1223,7 @@ const SortableKrColumn: React.FC<SortableKrColumnProps> = ({
                   e.stopPropagation()
                   onToggleKrMenu((current) => (current === kr.id ? null : kr.id))
                 }}
-                className="rounded-md p-1 text-[#7f8694] transition-colors hover:bg-black/[0.05]"
+                className="rounded-md p-1 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
               >
                 <MoreHorizontal className="h-4 w-4" strokeWidth={1.7} />
               </button>
@@ -978,7 +1236,7 @@ const SortableKrColumn: React.FC<SortableKrColumnProps> = ({
                   <button
                     type="button"
                     onClick={() => void onDeleteKr(kr.id)}
-                    className="w-full rounded-[10px] px-3 py-2 text-left text-[13px] font-medium text-[#c26a64] transition-colors hover:bg-[#fff3f2]"
+                    className="w-full rounded-[10px] px-3 py-2 text-left text-[14px] font-medium text-[#c26a64] transition-colors hover:bg-[#fff3f2]"
                   >
                     删除列
                   </button>
@@ -987,34 +1245,9 @@ const SortableKrColumn: React.FC<SortableKrColumnProps> = ({
             </div>
           </div>
 
-          {editingTarget?.id === kr.id ? (
-            <input
-              autoFocus
-              value={editingTarget.value}
-              onChange={(e) => onEditTargetChange({ ...editingTarget, value: e.target.value })}
-              onBlur={() => void onSaveTitle(kr.id, editingTarget.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void onSaveTitle(kr.id, editingTarget.value)
-                if (e.key === 'Escape') onEditTargetChange(null)
-              }}
-              onPointerDown={(e) => e.stopPropagation()}
-              className="w-full border-none bg-transparent p-0 text-[16px] font-bold tracking-[-0.01em] text-[#1f2530] outline-none"
-            />
-          ) : (
-            <button
-              type="button"
-              onDoubleClick={(e) => {
-                e.stopPropagation()
-                onEditTargetChange({ id: kr.id, kind: 'kr', value: kr.title })
-              }}
-              className="w-full truncate text-left text-[16px] font-bold tracking-[-0.01em] text-[#1f2530]"
-            >
-              {kr.title}
-            </button>
-          )}
         </div>
 
-        <div className="relative bg-white/76 px-4 pb-4 pt-3">
+        <div className="relative px-4 pb-4 pt-3" style={cardTheme.bodyStyle}>
           <div className="mb-1 flex items-center justify-between pl-1 pr-0.5">
             <span className="text-[12px] font-semibold tracking-[0.01em] text-[#7d8592]">TODO</span>
             <button
@@ -1042,8 +1275,18 @@ const SortableKrColumn: React.FC<SortableKrColumnProps> = ({
                     dragColor={dragColor}
                     editingTarget={editingTarget}
                     isSorting={activeTodoSortId === `objective-board-todo:${todo.id}`}
+                    isHighlighted={highlightedTodoId === todo.id}
+                    todoItemRef={(element) => {
+                      if (element) {
+                        todoItemRefs.current.set(todo.id, element)
+                      } else {
+                        todoItemRefs.current.delete(todo.id)
+                      }
+                    }}
+                    onSelectTodo={onSelectTodo}
                     onToggleTodo={onToggleTodo}
                     onSaveTitle={onSaveTitle}
+                    onSubmitTodoAndCreateNext={onSubmitTodoAndCreateNext}
                     onEditTargetChange={onEditTargetChange}
                   />
                 ))}
@@ -1062,10 +1305,15 @@ const SortableTodoCard: React.FC<SortableTodoCardProps> = ({
   dragColor,
   editingTarget,
   isSorting,
+  isHighlighted,
+  todoItemRef,
+  onSelectTodo,
   onToggleTodo,
   onSaveTitle,
+  onSubmitTodoAndCreateNext,
   onEditTargetChange,
 }) => {
+  const [threadPreview, setThreadPreview] = useState('')
   const sortableId = `objective-board-todo:${todo.id}`
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: sortableId,
@@ -1088,9 +1336,18 @@ const SortableTodoCard: React.FC<SortableTodoCardProps> = ({
     transition,
   }
 
+  useEffect(() => {
+    const storageId = `item:${todo.id}`
+    const syncPreview = () => setThreadPreview(getLatestTodoThreadPreview(storageId))
+
+    syncPreview()
+    return subscribeTodoThreadUpdates(syncPreview)
+  }, [todo.id])
+
   return (
     <div
       ref={setNodeRef}
+      data-objective-board-todo-id={todo.id}
       style={style}
       className={`rounded-[12px] ${
         isDragging || isSorting ? 'z-10 opacity-80 bg-white shadow-[0_16px_30px_rgba(15,23,42,0.12)]' : ''
@@ -1098,14 +1355,22 @@ const SortableTodoCard: React.FC<SortableTodoCardProps> = ({
       {...attributes}
       {...listeners}
     >
-      <div className="group flex items-center gap-2.5 rounded-[10px] px-1 py-2 text-left transition-colors hover:bg-black/[0.035]">
+      <div
+        ref={todoItemRef}
+        onClick={() => onSelectTodo?.(todo)}
+        className={`group/todo flex items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-left transition-all duration-300 hover:bg-black/[0.035] ${
+          isHighlighted
+            ? 'objective-board-linked-pulse border border-dashed border-[rgba(246,70,93,0.34)] bg-[rgba(246,70,93,0.05)]'
+            : ''
+        }`}
+      >
         <button
           type="button"
           onClick={(e) => {
             e.stopPropagation()
             void onToggleTodo(todo)
           }}
-          className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-[4px] border transition-colors focus:outline-none focus-visible:outline-none focus-visible:ring-0 ${
+          className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border transition-colors focus:outline-none focus-visible:outline-none focus-visible:ring-0 ${
             todo.status === 1 ? 'border-[#8d9199] bg-[#8d9199]' : 'border-[#c8cbd2] bg-transparent'
           }`}
         >
@@ -1120,10 +1385,14 @@ const SortableTodoCard: React.FC<SortableTodoCardProps> = ({
               onChange={(e) => onEditTargetChange({ ...editingTarget, value: e.target.value })}
               onBlur={() => void onSaveTitle(todo.id, editingTarget.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') void onSaveTitle(todo.id, editingTarget.value)
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  void onSubmitTodoAndCreateNext(todo.id, krId, editingTarget.value)
+                }
                 if (e.key === 'Escape') onEditTargetChange(null)
               }}
               onPointerDown={(e) => e.stopPropagation()}
+              placeholder="添加 TODO"
               className="w-full border-none bg-transparent p-0 text-[14px] font-medium leading-[1.2] text-[#313744] outline-none"
             />
           ) : (
@@ -1140,9 +1409,17 @@ const SortableTodoCard: React.FC<SortableTodoCardProps> = ({
               {todo.title || '未命名待办'}
             </button>
           )}
-          {todo.content ? (
+          {threadPreview ? (
+            <div className="mt-0.5 truncate whitespace-nowrap text-[12px] leading-[1.25] text-[#7b7f89]">
+              {threadPreview}
+            </div>
+          ) : todo.content ? (
             <div className="mt-0.5 text-[12px] leading-[1.25] text-[#7b7f89]">{todo.content}</div>
           ) : null}
+        </div>
+
+        <div className="pointer-events-none opacity-0 transition-opacity duration-150 group-hover/todo:pointer-events-auto group-hover/todo:opacity-100">
+          <TodoThreadPopover entityId={todo.id} entityKind="item" title={todo.title || '未命名待办'} />
         </div>
       </div>
     </div>

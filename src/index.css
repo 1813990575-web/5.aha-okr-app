@@ -2,6 +2,39 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --font-apple: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'PingFang SC', 'Hiragino Sans GB', 'Helvetica Neue', sans-serif;
+
+  /* Typography tokens (Apple-style baseline) */
+  --type-section-size: 40px;
+  --type-section-weight: 600;
+  --type-section-line-height: 1.1;
+
+  --type-title-size: 28px;
+  --type-title-weight: 700;
+  --type-title-line-height: 1.14;
+
+  --type-card-title-size: 21px;
+  --type-card-title-weight: 400;
+  --type-card-title-line-height: 1.19;
+
+  --type-body-size: 17px;
+  --type-body-weight: 400;
+  --type-body-line-height: 1.47;
+
+  --type-body-emphasis-size: 17px;
+  --type-body-emphasis-weight: 600;
+  --type-body-emphasis-line-height: 1.24;
+
+  --type-link-size: 14px;
+  --type-link-weight: 400;
+  --type-link-line-height: 1.43;
+
+  --type-micro-size: 12px;
+  --type-micro-weight: 400;
+  --type-micro-line-height: 1.33;
+}
+
 @layer base {
   * {
     @apply box-border;
@@ -9,7 +42,7 @@
   
   html, body, #root {
     @apply h-full w-full m-0 p-0 overflow-hidden;
-    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-family: var(--font-apple);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -72,6 +105,55 @@
   .app-no-drag {
     -webkit-app-region: no-drag;
     app-region: no-drag;
+  }
+
+  /* Semantic typography classes */
+  .typo-section-heading {
+    font-size: var(--type-section-size);
+    font-weight: var(--type-section-weight);
+    line-height: var(--type-section-line-height);
+  }
+
+  .typo-title-heading {
+    font-size: var(--type-title-size);
+    font-weight: var(--type-title-weight);
+    line-height: var(--type-title-line-height);
+  }
+
+  .typo-card-title {
+    font-size: var(--type-card-title-size);
+    font-weight: var(--type-card-title-weight);
+    line-height: var(--type-card-title-line-height);
+  }
+
+  .typo-card-title-bold {
+    font-size: var(--type-card-title-size);
+    font-weight: 700;
+    line-height: var(--type-card-title-line-height);
+  }
+
+  .typo-body {
+    font-size: var(--type-body-size);
+    font-weight: var(--type-body-weight);
+    line-height: var(--type-body-line-height);
+  }
+
+  .typo-body-emphasis {
+    font-size: var(--type-body-emphasis-size);
+    font-weight: var(--type-body-emphasis-weight);
+    line-height: var(--type-body-emphasis-line-height);
+  }
+
+  .typo-link {
+    font-size: var(--type-link-size);
+    font-weight: var(--type-link-weight);
+    line-height: var(--type-link-line-height);
+  }
+
+  .typo-micro {
+    font-size: var(--type-micro-size);
+    font-weight: var(--type-micro-weight);
+    line-height: var(--type-micro-line-height);
   }
 }
 
@@ -192,7 +274,7 @@
 }
 
 .version-text {
-  font-size: 11px;
+  font-size: 12px;
   color: rgba(0, 0, 0, 0.35);
   font-weight: 500;
   letter-spacing: 0.3px;
@@ -206,7 +288,7 @@
   height: 100%;
   min-height: 160px;
   outline: none;
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1.75;
   color: #202631;
   white-space: pre-wrap;
