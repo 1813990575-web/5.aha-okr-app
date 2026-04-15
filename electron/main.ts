@@ -1,11 +1,13 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import path from 'path'
 
-// Intel Mac 上保留兼容策略；Apple Silicon 默认开启硬件加速避免软件渲染卡顿。
+// Intel Mac 走降级窗口策略，但默认仍保留硬件加速。
+// 之前 Intel 上直接禁用硬件加速，会让透明/模糊窗口退回更重的软件渲染路径。
 const isIntelMac = process.platform === 'darwin' && process.arch === 'x64'
+const useReducedEffectsWindow = isIntelMac
 const forceDisableHwAccel = process.env.AHA_DISABLE_HW_ACCEL === '1'
 
-if (isIntelMac || forceDisableHwAccel) {
+if (forceDisableHwAccel) {
   app.commandLine.appendSwitch('disable-gpu-sandbox')
   app.disableHardwareAcceleration()
 }
@@ -56,10 +58,10 @@ function createWindow() {
     minHeight: 700,
     titleBarStyle: 'hidden',
     trafficLightPosition: { x: 20, y: 18 },
-    vibrancy: 'sidebar',
-    visualEffectState: 'active',
-    backgroundColor: '#00000000',
-    transparent: true,
+    vibrancy: useReducedEffectsWindow ? undefined : 'sidebar',
+    visualEffectState: useReducedEffectsWindow ? undefined : 'active',
+    backgroundColor: useReducedEffectsWindow ? '#f7f8fa' : '#00000000',
+    transparent: !useReducedEffectsWindow,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
