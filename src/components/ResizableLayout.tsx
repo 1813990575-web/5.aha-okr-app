@@ -109,6 +109,7 @@ export const ResizableLayout: React.FC<ResizableLayoutProps> = ({
 }) => {
   const leftConfig = { ...DEFAULT_LEFT_CONFIG, ...leftPanelConfig }
   const rightConfig = { ...DEFAULT_RIGHT_CONFIG, ...rightPanelConfig }
+  const hasRightPanel = Boolean(rightPanel) && !fullWidthPanel
 
   const [leftWidth, setLeftWidth] = useState(leftConfig.defaultWidth)
   const [rightWidth, setRightWidth] = useState(rightConfig.defaultWidth)
@@ -163,7 +164,7 @@ export const ResizableLayout: React.FC<ResizableLayoutProps> = ({
         {/* 中间 + 右侧区域 */}
         <div
           className="flex flex-1 overflow-hidden"
-          style={{ minWidth: fullWidthPanel ? minCenterWidth : minCenterWidth + rightWidth }}
+          style={{ minWidth: hasRightPanel ? minCenterWidth + rightWidth : minCenterWidth }}
         >
           {fullWidthPanel ? (
             <div className="min-w-0 flex-1 overflow-hidden">
@@ -175,16 +176,20 @@ export const ResizableLayout: React.FC<ResizableLayoutProps> = ({
                 {centerPanel}
               </div>
 
-              <div className="relative flex h-full flex-shrink-0 items-stretch">
-                <ResizeHandle onResize={handleRightResize} direction="right" visibleLine />
-              </div>
+              {hasRightPanel ? (
+                <>
+                  <div className="relative flex h-full flex-shrink-0 items-stretch">
+                    <ResizeHandle onResize={handleRightResize} direction="right" visibleLine />
+                  </div>
 
-              <div
-                className="relative flex-shrink-0 overflow-hidden"
-                style={{ width: rightWidth }}
-              >
-                {rightPanel}
-              </div>
+                  <div
+                    className="relative flex-shrink-0 overflow-hidden"
+                    style={{ width: rightWidth }}
+                  >
+                    {rightPanel}
+                  </div>
+                </>
+              ) : null}
             </>
           )}
         </div>

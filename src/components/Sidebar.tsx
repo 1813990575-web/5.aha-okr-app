@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect, useLayoutEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Check, Circle, Square, Triangle, Plus, Trash2, CalendarPlus, ListTodo } from 'lucide-react'
+import { Check, Circle, Square, Triangle, Plus, Trash2, CalendarPlus } from 'lucide-react'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useDndMonitor } from '@dnd-kit/core'
@@ -209,15 +209,14 @@ interface SidebarProps {
   activeObjective?: string
   onSetActive?: (id: string) => void
   onAddToDailyTasks?: (item: { id: string; title: string; color?: string | null; type?: 'O' | 'KR' | 'TODO' }) => void
-  onToggleObjectiveBoardMode?: (objective?: { id: string; title: string; color?: string | null }) => void
+  onSwitchObjectiveBoard?: (objective?: { id: string; title: string; color?: string | null }) => void
   onOkrItemsChanged?: () => void | Promise<void>
-  okrViewMode?: 'daily' | 'objective-board'
   refreshTrigger?: number
   shouldScrollToActive?: boolean // 是否自动滚动到选中项（中间面板触发时为 true）
   sliderStyle?: 'bead' | 'pill'
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ activeObjective: externalActiveObjective, onSetActive, onAddToDailyTasks, onToggleObjectiveBoardMode, onOkrItemsChanged, okrViewMode = 'daily', refreshTrigger, shouldScrollToActive = false, sliderStyle = 'bead' }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ activeObjective: externalActiveObjective, onSetActive, onAddToDailyTasks, onSwitchObjectiveBoard, onOkrItemsChanged, refreshTrigger, shouldScrollToActive = false, sliderStyle = 'bead' }) => {
   const [internalActiveObjective, setInternalActiveObjective] = useState<string>('obj-1')
   const [activeSortId, setActiveSortId] = useState<string | null>(null)
   const [overSortId, setOverSortId] = useState<string | null>(null)
@@ -460,24 +459,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeObjective: externalActiv
     }
   }
 
-  const handleToggleBoardMode = () => {
-    if (okrViewMode === 'objective-board') {
-      onToggleObjectiveBoardMode?.()
-      return
-    }
-
-    const selectedObjective = items.find((item) => item.iconType === 'objective' && (item.dbId === activeObjective || item.id === activeObjective))
-    const firstObjective = items.find((item) => item.iconType === 'objective')
-    const target = selectedObjective || firstObjective
-
-    if (target) {
-      onToggleObjectiveBoardMode?.({ id: target.dbId, title: target.label, color: target.color ?? null })
-      return
-    }
-
-    onToggleObjectiveBoardMode?.()
-  }
-
   return (
     <aside
       className="w-full h-full flex flex-col transition-all duration-300"
@@ -491,15 +472,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeObjective: externalActiv
     >
       {/* 可拖拽的上边栏区域 */}
       <div className="app-drag-region flex-shrink-0 px-3">
-        <div className="traffic-light-space flex items-center justify-end px-1">
-          <button
-            onClick={handleToggleBoardMode}
-            className="app-no-drag flex h-6 w-6 items-center justify-center rounded-md transition-colors hover:bg-gray-200/40 dark:hover:bg-gray-700/40"
-            title={okrViewMode === 'objective-board' ? '执行模式' : '梳理模式'}
-          >
-            <ListTodo className="h-4 w-4" style={{ color: themeConfig.isDark ? 'rgba(255,255,255,0.56)' : 'rgba(74, 78, 105, 0.56)' }} />
-          </button>
-        </div>
+        <div className="traffic-light-space px-1" />
         <SegmentedControl
           defaultValue="objectives"
           onChange={handleViewModeChange}
@@ -541,11 +514,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeObjective: externalActiv
             <ObjectiveList
               items={items}
               activeObjective={activeObjective}
-              okrViewMode={okrViewMode}
               editingId={editingId}
               newObjectiveId={newObjectiveId}
               onSetActive={setActiveObjective}
-              onToggleObjectiveBoardMode={onToggleObjectiveBoardMode}
+              onSwitchObjectiveBoard={onSwitchObjectiveBoard}
               onUpdateLabel={handleUpdateLabel}
               onToggleExpand={handleToggleExpand}
               onCreateSibling={handleCreateSibling}
@@ -1355,11 +1327,10 @@ const ObjectiveItem: React.FC<ObjectiveItemProps> = ({
 interface ObjectiveListProps {
   items: ObjectiveItemUI[]
   activeObjective: string
-  okrViewMode?: 'daily' | 'objective-board'
   editingId: string | null
   newObjectiveId: string | null
   onSetActive: (id: string) => void
-  onToggleObjectiveBoardMode?: (objective?: { id: string; title: string; color?: string | null }) => void
+  onSwitchObjectiveBoard?: (objective?: { id: string; title: string; color?: string | null }) => void
   onUpdateLabel: (dbId: string, newLabel: string) => Promise<void>
   onToggleExpand: (id: string) => void
   onCreateSibling: (id: string) => Promise<void>
@@ -1389,11 +1360,10 @@ interface ObjectiveListProps {
 const ObjectiveList: React.FC<ObjectiveListProps> = ({
   items,
   activeObjective,
-  okrViewMode = 'daily',
   editingId,
   newObjectiveId,
   onSetActive,
-  onToggleObjectiveBoardMode,
+  onSwitchObjectiveBoard,
   onUpdateLabel,
   onToggleExpand,
   onCreateSibling,
@@ -1447,13 +1417,11 @@ const ObjectiveList: React.FC<ObjectiveListProps> = ({
 
   const handleObjectiveClick = (objective: ObjectiveItemUI) => {
     onSetActive(objective.id)
-    if (okrViewMode === 'objective-board') {
-      onToggleObjectiveBoardMode?.({
-        id: objective.dbId,
-        title: objective.label,
-        color: objective.color ?? null,
-      })
-    }
+    onSwitchObjectiveBoard?.({
+      id: objective.dbId,
+      title: objective.label,
+      color: objective.color ?? null,
+    })
   }
 
   const objectiveGroups = buildObjectiveGroups(items)

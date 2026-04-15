@@ -2,7 +2,7 @@ import React from 'react'
 import { useDndContext, useDroppable } from '@dnd-kit/core'
 import { useDragContext } from './DragProvider'
 
-interface DroppableMainBoardProps {
+interface DroppableTaskBoardProps {
   children: React.ReactNode
   isOver?: boolean
   dropZoneId?: string
@@ -10,9 +10,9 @@ interface DroppableMainBoardProps {
   glassMode?: boolean
 }
 
-export const DroppableMainBoard: React.FC<DroppableMainBoardProps> = ({
+export const DroppableTaskBoard: React.FC<DroppableTaskBoardProps> = ({
   children,
-  dropZoneId = 'main-board-drop-zone',
+  dropZoneId = 'task-board-drop-zone',
   className = '',
   glassMode = false,
 }) => {
@@ -23,11 +23,11 @@ export const DroppableMainBoard: React.FC<DroppableMainBoardProps> = ({
   })
 
   const overData = over?.data.current as { dragKind?: string } | undefined
-  const isOverSortableLane = overData?.dragKind === 'mainboard-sort'
+  const isOverSortableLane = overData?.dragKind === 'taskboard-sort'
 
   const isSidebarDrop =
     !!activeItem &&
-    activeItem.dragKind !== 'mainboard-sort' &&
+    activeItem.dragKind !== 'taskboard-sort' &&
     activeItem.dragKind !== 'execution-child-sort' &&
     activeItem.type !== 'O'
 

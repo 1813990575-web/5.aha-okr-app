@@ -19,12 +19,10 @@ export interface DatabaseAPI {
 export interface DailyTasksAPI {
   getAllTasks: () => Promise<any[]>
   getTasksByDate: (date: string) => Promise<any[]>
-  getTaskById: (id: string) => Promise<any | null>
   createTask: (data: any) => Promise<any>
   updateTask: (id: string, updates: any) => Promise<any | null>
   deleteTask: (id: string) => Promise<boolean>
   toggleTaskStatus: (id: string) => Promise<any | null>
-  getTodayString: () => Promise<string>
 }
 
 export interface JournalAPI {

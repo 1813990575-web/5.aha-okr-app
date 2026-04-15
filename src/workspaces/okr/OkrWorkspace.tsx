@@ -1,7 +1,5 @@
-import React, { useState } from 'react'
+import React from 'react'
 import { Sidebar } from '../../components/Sidebar'
-import { MainBoard } from '../../components/MainBoard'
-import { Timeline } from '../../components/Timeline'
 import { ResizableLayout } from '../../components/ResizableLayout'
 import { ObjectiveBoard } from '../../components/ObjectiveBoard'
 import type { DailyTask } from '../../store/index'
@@ -25,13 +23,10 @@ interface OkrWorkspaceProps {
   sliderStyle: 'bead' | 'pill'
   tasks: DailyTask[]
   selectedDate: Date
-  highlightedTaskId: string | null
-  highlightedSourceItemIds: string[]
   focusedObjectiveBoard: { id: string; title: string; color?: string | null } | null
-  okrViewMode: 'daily' | 'objective-board'
   onSetActiveObjective: (itemId: string, shouldScroll?: boolean) => void
   onAddToDailyTasks: (item: { id: string; title: string; color?: string | null; type?: 'O' | 'KR' | 'TODO' }) => void | Promise<void>
-  onToggleObjectiveBoardMode: (objective?: { id: string; title: string; color?: string | null }) => void
+  onSwitchObjectiveBoard: (objective?: { id: string; title: string; color?: string | null }) => void
   onOkrItemsChanged: () => void | Promise<void>
   onDateChange: (date: Date) => void
   onCreateTask: (content: string) => void | Promise<void>
@@ -41,7 +36,6 @@ interface OkrWorkspaceProps {
   onMoveTaskToToday: (id: string) => void | Promise<void>
   onReorderTasks: (orderedTaskIds: string[]) => void | Promise<void>
   onExecutionItemsChanged: () => void | Promise<void>
-  onUpdateTaskNote: (id: string, note: string) => void | Promise<void>
   isPastDate: boolean
   dragNotice?: string | null
 }
@@ -54,13 +48,10 @@ export const OkrWorkspace: React.FC<OkrWorkspaceProps> = ({
   sliderStyle,
   tasks,
   selectedDate,
-  highlightedTaskId,
-  highlightedSourceItemIds,
   focusedObjectiveBoard,
-  okrViewMode,
   onSetActiveObjective,
   onAddToDailyTasks,
-  onToggleObjectiveBoardMode,
+  onSwitchObjectiveBoard,
   onOkrItemsChanged,
   onDateChange,
   onCreateTask,
@@ -70,13 +61,9 @@ export const OkrWorkspace: React.FC<OkrWorkspaceProps> = ({
   onMoveTaskToToday,
   onReorderTasks,
   onExecutionItemsChanged,
-  onUpdateTaskNote,
   isPastDate,
   dragNotice,
 }) => {
-  const [selectedTaskNoteTarget, setSelectedTaskNoteTarget] = useState<{ id: string; title: string } | null>(null)
-  const selectedTask = tasks.find((task) => task.id === selectedTaskNoteTarget?.id) ?? null
-
   return (
     <div className="flex h-full flex-col">
       {apiUnavailableMessage ? (
@@ -86,45 +73,16 @@ export const OkrWorkspace: React.FC<OkrWorkspaceProps> = ({
       ) : null}
       <div className="min-h-0 flex-1">
         <ResizableLayout
-          leftPanel={<Sidebar activeObjective={activeObjective} onSetActive={onSetActiveObjective} onAddToDailyTasks={onAddToDailyTasks} onToggleObjectiveBoardMode={onToggleObjectiveBoardMode} okrViewMode={okrViewMode} refreshTrigger={sidebarRefreshTrigger} shouldScrollToActive={shouldScrollToActive} sliderStyle={sliderStyle} onOkrItemsChanged={onOkrItemsChanged} />}
-          centerPanel={
-            <MainBoard
-              tasks={tasks}
-              selectedDate={selectedDate}
-              onDateChange={onDateChange}
-              onCreateTask={onCreateTask}
-              onToggleTask={onToggleTask}
-              onDeleteTask={onDeleteTask}
-              onUpdateTaskContent={onUpdateTaskContent}
-              onMoveTaskToToday={onMoveTaskToToday}
-              onSetActiveObjective={onSetActiveObjective}
-              highlightedTaskId={highlightedTaskId}
-              highlightedSourceItemIds={highlightedSourceItemIds}
-              isPastDate={isPastDate}
-              onReorderTasks={onReorderTasks}
-              onExecutionItemsChanged={onExecutionItemsChanged}
-              onSelectionTitleChange={setSelectedTaskNoteTarget}
-              okrRefreshTrigger={sidebarRefreshTrigger}
-            />
-          }
-          rightPanel={
-            <Timeline
-              selectedId={selectedTaskNoteTarget?.id}
-              selectedTitle={selectedTaskNoteTarget?.title}
-              selectedNote={selectedTask?.note ?? ''}
-              onNoteChange={onUpdateTaskNote}
-            />
-          }
+          leftPanel={<Sidebar activeObjective={activeObjective} onSetActive={onSetActiveObjective} onAddToDailyTasks={onAddToDailyTasks} onSwitchObjectiveBoard={onSwitchObjectiveBoard} refreshTrigger={sidebarRefreshTrigger} shouldScrollToActive={shouldScrollToActive} sliderStyle={sliderStyle} onOkrItemsChanged={onOkrItemsChanged} />}
+          centerPanel={null}
           fullWidthPanel={
-            okrViewMode === 'objective-board'
-              ? (
-                focusedObjectiveBoard ? (
-                  <div
-                    className="h-full w-full bg-white"
-                    data-objective-board-id={focusedObjectiveBoard.id}
-                    aria-label={focusedObjectiveBoard.title}
-                  >
-                    <ObjectiveBoard
+            focusedObjectiveBoard ? (
+              <div
+                className="h-full w-full bg-white"
+                data-objective-board-id={focusedObjectiveBoard.id}
+                aria-label={focusedObjectiveBoard.title}
+              >
+                <ObjectiveBoard
                     objective={focusedObjectiveBoard}
                     tasks={tasks}
                     selectedDate={selectedDate}
@@ -137,28 +95,20 @@ export const OkrWorkspace: React.FC<OkrWorkspaceProps> = ({
                       onMoveTaskToToday={onMoveTaskToToday}
                       onReorderTasks={onReorderTasks}
                       isPastDate={isPastDate}
-                      onUpdateTaskNote={onUpdateTaskNote}
                       onObjectiveChanged={onExecutionItemsChanged}
-                      onSwitchObjectiveBoard={onToggleObjectiveBoardMode}
+                      onSwitchObjectiveBoard={onSwitchObjectiveBoard}
                       refreshTrigger={sidebarRefreshTrigger}
                       dragNotice={dragNotice}
-                    />
-                  </div>
-                ) : (
-                  <EmptyObjectiveBoardState />
-                )
-              )
-              : undefined
+                />
+              </div>
+            ) : (
+              <EmptyObjectiveBoardState />
+            )
           }
           leftPanelConfig={{
             minWidth: 180,
             defaultWidth: 240,
             maxWidth: 360,
-          }}
-          rightPanelConfig={{
-            minWidth: 280,
-            defaultWidth: 412,
-            maxWidth: 520,
           }}
         />
       </div>

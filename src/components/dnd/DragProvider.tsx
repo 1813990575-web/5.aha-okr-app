@@ -17,7 +17,7 @@ export interface DragItem {
   content: string
   color?: string | null
   parentId?: string | null
-  dragKind?: 'sidebar-sort' | 'mainboard-sort' | 'execution-child-sort'
+  dragKind?: 'sidebar-sort' | 'taskboard-sort' | 'execution-child-sort'
   level?: 1 | 2 | 3
   iconType?: 'objective' | 'keyresult' | 'todo'
 }
@@ -57,8 +57,6 @@ export const DragProvider: React.FC<DragProviderProps> = ({ children, onDragEnd 
   )
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
-    // 验证 Context 活性：红色错误 log
-    console.error('DND_ACTIVE: Start detected!', event.active.id)
     const { active } = event
     const rawItem = active.data.current as Partial<DragItem> | undefined
     const item: DragItem | null = rawItem?.title && rawItem?.type
@@ -102,14 +100,14 @@ export const DragProvider: React.FC<DragProviderProps> = ({ children, onDragEnd 
     setActiveItem(null)
 
     const overId = over?.id ? String(over.id) : null
-    const droppedIntoMainBoard =
+    const droppedIntoTaskBoard =
       !!over && (
-        overId?.includes('main-board-drop-zone') ||
+        overId?.includes('task-board-drop-zone') ||
         overId?.includes('floating-cart-drop-zone') ||
-        overData?.dragKind === 'mainboard-sort'
+        overData?.dragKind === 'taskboard-sort'
       )
 
-    if (droppedIntoMainBoard && item && item.dragKind !== 'mainboard-sort' && item.dragKind !== 'execution-child-sort') {
+    if (droppedIntoTaskBoard && item && item.dragKind !== 'taskboard-sort' && item.dragKind !== 'execution-child-sort') {
       onDragEnd?.({
         ...item,
         dragKind: undefined,

@@ -33,12 +33,10 @@ export interface DatabaseAPI {
 export interface DailyTasksAPI {
   getAllTasks: () => Promise<any[]>
   getTasksByDate: (date: string) => Promise<any[]>
-  getTaskById: (id: string) => Promise<any | null>
   createTask: (data: any) => Promise<any>
   updateTask: (id: string, updates: any) => Promise<any | null>
   deleteTask: (id: string) => Promise<boolean>
   toggleTaskStatus: (id: string) => Promise<any | null>
-  getTodayString: () => Promise<string>
 }
 
 export interface JournalAPI {
@@ -69,12 +67,10 @@ const databaseAPI: DatabaseAPI = {
 const dailyTasksAPI: DailyTasksAPI = {
   getAllTasks: () => ipcRenderer.invoke('daily:getAllTasks'),
   getTasksByDate: (date: string) => ipcRenderer.invoke('daily:getTasksByDate', date),
-  getTaskById: (id: string) => ipcRenderer.invoke('daily:getTaskById', id),
   createTask: (data: any) => ipcRenderer.invoke('daily:createTask', data),
   updateTask: (id: string, updates: any) => ipcRenderer.invoke('daily:updateTask', id, updates),
   deleteTask: (id: string) => ipcRenderer.invoke('daily:deleteTask', id),
   toggleTaskStatus: (id: string) => ipcRenderer.invoke('daily:toggleTaskStatus', id),
-  getTodayString: () => ipcRenderer.invoke('daily:getTodayString'),
 }
 
 const journalAPI: JournalAPI = {

@@ -3,26 +3,20 @@ import { createPortal } from 'react-dom'
 import { useDndMonitor } from '@dnd-kit/core'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { CalendarHeader } from './daily/CalendarHeader'
-import { DatePicker } from './daily/DatePicker'
-import { TaskInput } from './daily/TaskInput'
-import { TaskChatComposer } from './daily/TaskChatComposer'
-import { TaskItem } from './daily/TaskItem'
-import { TaskFocusPanel } from './daily/TaskFocusPanel'
-import { DroppableMainBoard } from './dnd/DroppableMainBoard'
-import { getObjectiveColorOption } from './Sidebar'
+import { CalendarHeader } from './CalendarHeader'
+import { DatePicker } from './DatePicker'
+import { TaskInput } from './TaskInput'
+import { TaskChatComposer } from './TaskChatComposer'
+import { TaskItem } from './TaskItem'
+import { TaskFocusPanel } from './TaskFocusPanel'
+import { DroppableTaskBoard } from '../dnd/DroppableTaskBoard'
 import { Check, ChevronDown, Triangle } from 'lucide-react'
-import type { DailyTask, Item } from '../store/index'
-import {
-  formatFocusDuration,
-  getFocusElapsedMs,
-  readFocusSessions,
-  subscribeFocusSessions,
-  writeFocusSessions,
-  type FocusSessionRecord,
-} from './daily/focusSessionStore'
+import type { DailyTask, Item } from '../../store/index'
+import type { FocusSessionRecord } from './focusSessionStore'
+import { useTaskBoardFocusSessions } from './useTaskBoardFocusSessions'
+import { useTaskBoardExecutionData } from './useTaskBoardExecutionData'
 
-interface MainBoardProps {
+interface TaskBoardProps {
   tasks: DailyTask[]
   selectedDate: Date
   onDateChange: (date: Date) => void
@@ -32,13 +26,11 @@ interface MainBoardProps {
   onUpdateTaskContent?: (id: string, content: string) => void
   onMoveTaskToToday?: (id: string) => void
   onSetActiveObjective?: (itemId: string, shouldScroll?: boolean) => void
-  highlightedTaskId?: string | null
   relationHighlightedTaskId?: string | null
   highlightedSourceItemIds?: string[]
   isPastDate?: boolean
   onReorderTasks?: (orderedTaskIds: string[]) => void | Promise<void>
   onExecutionItemsChanged?: () => void | Promise<void>
-  onSelectionTitleChange?: (selection: { id: string; title: string } | null) => void
   okrRefreshTrigger?: number
   dndScope?: string
   dropZoneId?: string
@@ -48,7 +40,7 @@ interface MainBoardProps {
   glassMode?: boolean
 }
 
-export const MainBoard: React.FC<MainBoardProps> = ({
+export const TaskBoard: React.FC<TaskBoardProps> = ({
   tasks,
   selectedDate,
   onDateChange,
@@ -58,119 +50,60 @@ export const MainBoard: React.FC<MainBoardProps> = ({
   onUpdateTaskContent,
   onMoveTaskToToday,
   onSetActiveObjective,
-  highlightedTaskId,
   relationHighlightedTaskId,
   highlightedSourceItemIds,
   isPastDate,
   onReorderTasks,
   onExecutionItemsChanged,
-  onSelectionTitleChange,
   okrRefreshTrigger,
   dndScope = 'main',
-  dropZoneId = 'main-board-drop-zone',
+  dropZoneId = 'task-board-drop-zone',
   className = '',
   taskComposerMode = 'inline',
   enableHeaderDragRegion = true,
   glassMode = false,
 }) => {
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false)
-  const [items, setItems] = useState<Item[]>([])
-  const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [selectedExecutionItemId, setSelectedExecutionItemId] = useState<string | null>(null)
-  const [datesWithTasks, setDatesWithTasks] = useState<Set<string>>(new Set())
   const [activeSortTaskId, setActiveSortTaskId] = useState<string | null>(null)
   const [overSortTaskId, setOverSortTaskId] = useState<string | null>(null)
   const [activeChildSortId, setActiveChildSortId] = useState<string | null>(null)
   const [editingSourceItemId, setEditingSourceItemId] = useState<string | null>(null)
   const [collapsedExecutionKrIds, setCollapsedExecutionKrIds] = useState<Set<string>>(new Set())
   const [isScrolling, setIsScrolling] = useState(false)
-  const [focusSessions, setFocusSessions] = useState<Record<string, FocusSessionRecord>>(() => readFocusSessions())
-  const [focusNow, setFocusNow] = useState(() => Date.now())
   const scrollTimerRef = useRef<number | null>(null)
   const useChatBottomComposer = taskComposerMode === 'chat-bottom'
   const getTaskSortableId = useCallback((taskId: string) => `${dndScope}-task:${taskId}`, [dndScope])
   const parseScopedId = useCallback((scopedId: string, prefix: string) => {
     return scopedId.startsWith(prefix) ? scopedId.slice(prefix.length) : null
   }, [])
-
-  // 加载 OKR 数据（用于显示关联项标题）
-  const loadItems = useCallback(async () => {
-    try {
-      const allItems = await window.electronAPI.database.getAllItems()
-      setItems(allItems)
-      setIsLoading(false)
-    } catch (error) {
-      setIsLoading(false)
-    }
-  }, [])
-
-  // 加载所有任务日期（用于日历圆点标记）
-  const loadAllTaskDates = useCallback(async () => {
-    try {
-      const allTasks = await window.electronAPI.dailyTasks.getAllTasks()
-      const datesSet = new Set<string>()
-      allTasks.forEach((task: DailyTask) => {
-        if (task.date) {
-          datesSet.add(task.date)
-        }
-      })
-      setDatesWithTasks(datesSet)
-    } catch (error) {
-      // 静默处理错误
-    }
-  }, [])
-
-  // 初始加载
-  useEffect(() => {
-    loadItems()
-    loadAllTaskDates()
-  }, [loadItems, loadAllTaskDates])
-
-  useEffect(() => {
-    if (okrRefreshTrigger === undefined) return
-    void loadItems()
-  }, [okrRefreshTrigger, loadItems])
-
-  useEffect(() => subscribeFocusSessions(() => setFocusSessions(readFocusSessions())), [])
-
-  useEffect(() => {
-    const hasRunningSession = Object.values(focusSessions).some((session) => session.isRunning)
-    if (!hasRunningSession) return
-
-    const timer = window.setInterval(() => setFocusNow(Date.now()), 1000)
-    return () => window.clearInterval(timer)
-  }, [focusSessions])
-
-  // 当任务变化时刷新日期集合
-  useEffect(() => {
-    loadAllTaskDates()
-  }, [tasks, loadAllTaskDates])
-
-  useEffect(() => {
-    setFocusSessions((current) => {
-      let hasChanged = false
-      const nextSessions = { ...current }
-
-      tasks.forEach((task) => {
-        const currentSession = nextSessions[task.id]
-        if (!currentSession) return
-        if (currentSession.title === task.content) return
-
-        nextSessions[task.id] = {
-          ...currentSession,
-          title: task.content,
-          updatedAt: Date.now(),
-        }
-        hasChanged = true
-      })
-
-      if (!hasChanged) return current
-      writeFocusSessions(nextSessions)
-      return nextSessions
-    })
-  }, [tasks])
+  const {
+    focusSessions,
+    patchFocusSession,
+    removeFocusSession,
+    handleStartFocus,
+  } = useTaskBoardFocusSessions(tasks)
+  const {
+    items,
+    isLoading,
+    datesWithTasks,
+    getLinkedItemInfo,
+    getItemById,
+    getChildrenOf,
+    createExecutionChild,
+    updateExecutionItemTitle,
+    deleteExecutionItem,
+    toggleExecutionItemStatus,
+    reorderExecutionChildren,
+  } = useTaskBoardExecutionData({
+    tasks,
+    okrRefreshTrigger,
+    onExecutionItemsChanged,
+    editingSourceItemId,
+    setEditingSourceItemId,
+  })
 
   // 处理创建待办
   const handleCreateTask = async (content: string) => {
@@ -178,7 +111,7 @@ export const MainBoard: React.FC<MainBoardProps> = ({
       setErrorMessage(null)
       await onCreateTask(content)
     } catch (error: any) {
-      console.error('[MainBoard] 创建待办失败:', error)
+      console.error('[TaskBoard] 创建待办失败:', error)
       setErrorMessage('保存失败')
       setTimeout(() => setErrorMessage(null), 3000)
     }
@@ -201,186 +134,13 @@ export const MainBoard: React.FC<MainBoardProps> = ({
     try {
       setErrorMessage(null)
       await onDeleteTask(id)
-      setFocusSessions((current) => {
-        if (!current[id]) return current
-        const nextSessions = { ...current }
-        delete nextSessions[id]
-        writeFocusSessions(nextSessions)
-        return nextSessions
-      })
+      removeFocusSession(id)
     } catch (error: any) {
       console.error('删除待办失败:', error)
       setErrorMessage('删除失败')
       setTimeout(() => setErrorMessage(null), 3000)
     }
   }
-
-  const patchFocusSession = useCallback((taskId: string, patch: Partial<FocusSessionRecord>) => {
-    setFocusSessions((current) => {
-      const existingSession = current[taskId]
-      if (!existingSession) return current
-
-      const nextSessions = {
-        ...current,
-        [taskId]: {
-          ...existingSession,
-          ...patch,
-          updatedAt: Date.now(),
-        },
-      }
-      writeFocusSessions(nextSessions)
-      return nextSessions
-    })
-  }, [])
-
-  const removeFocusSession = useCallback((taskId: string) => {
-    setFocusSessions((current) => {
-      if (!current[taskId]) return current
-      const nextSessions = { ...current }
-      delete nextSessions[taskId]
-      writeFocusSessions(nextSessions)
-      return nextSessions
-    })
-  }, [])
-
-  const handleStartFocus = useCallback((task: DailyTask, anchorRect?: { top: number; left: number; width: number; height: number; right?: number; bottom?: number } | null) => {
-    setFocusSessions((current) => {
-      const existingSession = current[task.id]
-      const panelWidth = 356
-      const viewportPadding = 18
-      const anchorLeft = anchorRect?.left ?? Math.max(72, window.innerWidth - 470)
-      const anchorTop = anchorRect?.top ?? 96
-      const anchorRight = anchorRect?.right ?? anchorLeft + (anchorRect?.width ?? 0)
-      const nextLeftCandidate = anchorLeft - panelWidth - 18
-      const nextLeft = nextLeftCandidate > viewportPadding
-        ? nextLeftCandidate
-        : Math.min(window.innerWidth - panelWidth - viewportPadding, anchorRight + 18)
-      const nextTop = Math.min(window.innerHeight - 520, Math.max(viewportPadding, anchorTop - 20))
-
-      const nextSession: FocusSessionRecord = existingSession
-        ? {
-            ...existingSession,
-            title: task.content,
-            panelOpen: true,
-            position: existingSession.position ?? { top: nextTop, left: nextLeft },
-            updatedAt: Date.now(),
-          }
-        : {
-            taskId: task.id,
-            title: task.content,
-            accumulatedMs: 0,
-            startedAt: Date.now(),
-            isRunning: true,
-            panelOpen: true,
-            position: { top: nextTop, left: nextLeft },
-            updatedAt: Date.now(),
-          }
-
-      const nextSessions = { ...current, [task.id]: nextSession }
-      writeFocusSessions(nextSessions)
-      return nextSessions
-    })
-  }, [])
-
-  // 获取关联项标题和颜色 - 找到 TODO 所属的 Objective（祖父级）
-  const getLinkedItemInfo = (linkedGoalId: string | null) => {
-    if (!linkedGoalId) return { title: null, color: null }
-
-    // 先查找直接关联的项
-    const item = items.find(i => i.id === linkedGoalId)
-    if (!item) return { title: null, color: null }
-
-    // 辅助函数：获取颜色 key 对应的实际颜色值
-    const getColorValue = (colorKey: string | null | undefined): string | null => {
-      if (!colorKey) return null
-      const colorOption = getObjectiveColorOption(colorKey)
-      return colorOption?.textColor || null
-    }
-
-    // 如果关联的是 TODO（type === 'TODO'）
-    if (item.type === 'TODO' && item.parent_id) {
-      const parentKR = items.find(i => i.id === item.parent_id)
-      if (parentKR) {
-        // 继续找到 KR 的父级 Objective 获取颜色
-        if (parentKR.parent_id) {
-          const grandparentObjective = items.find(i => i.id === parentKR.parent_id)
-          if (grandparentObjective) {
-            return { title: parentKR.title || null, color: getColorValue(grandparentObjective.color) }
-          }
-        }
-        return { title: parentKR.title || null, color: getColorValue(parentKR.color) }
-      }
-    }
-
-    // 如果关联的是 KR，找到它的父级 Objective 获取颜色
-    if (item.type === 'KR' && item.parent_id) {
-      const parentObjective = items.find(i => i.id === item.parent_id)
-      if (parentObjective) {
-        return { title: item.title || null, color: getColorValue(parentObjective.color) }
-      }
-    }
-
-    // 如果关联的是 Objective，直接返回
-    return { title: item.title || null, color: getColorValue(item.color) }
-  }
-
-  const getItemById = useCallback((itemId: string | null | undefined) => {
-    if (!itemId) return null
-    return items.find((item) => item.id === itemId) || null
-  }, [items])
-
-  const getChildrenOf = useCallback((parentId: string | null | undefined, type?: Item['type']) => {
-    if (!parentId) return []
-    return items
-      .filter((item) => item.parent_id === parentId && (!type || item.type === type))
-      .sort((a, b) => a.sort_order - b.sort_order)
-  }, [items])
-
-  const refreshExecutionItems = useCallback(async () => {
-    await loadItems()
-    await onExecutionItemsChanged?.()
-  }, [loadItems, onExecutionItemsChanged])
-
-  const createExecutionChild = useCallback(async (parentItem: Item) => {
-    const childType = parentItem.type === 'O' ? 'KR' : parentItem.type === 'KR' ? 'TODO' : null
-    if (!childType) return
-
-    const newId = crypto.randomUUID()
-    await window.electronAPI.database.createItemAtTop({
-      id: newId,
-      type: childType,
-      parent_id: parentItem.id,
-      title: '',
-      content: '',
-      status: 0,
-      total_focus_time: 0,
-    })
-
-    if (parentItem.type !== 'TODO') {
-      setEditingSourceItemId(newId)
-      await refreshExecutionItems()
-    }
-  }, [refreshExecutionItems])
-
-  const updateExecutionItemTitle = useCallback(async (itemId: string, title: string) => {
-    await window.electronAPI.database.updateItem(itemId, { title })
-    setEditingSourceItemId(null)
-    await refreshExecutionItems()
-  }, [refreshExecutionItems])
-
-  const deleteExecutionItem = useCallback(async (itemId: string) => {
-    await window.electronAPI.database.deleteItem(itemId)
-    if (editingSourceItemId === itemId) {
-      setEditingSourceItemId(null)
-    }
-    await refreshExecutionItems()
-  }, [editingSourceItemId, refreshExecutionItems])
-
-  const toggleExecutionItemStatus = useCallback(async (item: Item) => {
-    const nextStatus = item.status === 1 ? 0 : 1
-    await window.electronAPI.database.updateItem(item.id, { status: nextStatus })
-    await refreshExecutionItems()
-  }, [refreshExecutionItems])
 
   const toggleExecutionKrCollapsed = useCallback((itemId: string) => {
     setCollapsedExecutionKrIds((current) => {
@@ -394,39 +154,10 @@ export const MainBoard: React.FC<MainBoardProps> = ({
     })
   }, [])
 
-  const reorderExecutionChildren = useCallback(async (
-    activeItemId: string,
-    overItemId: string,
-    parentId: string | null | undefined,
-    itemType: Item['type']
-  ) => {
-    if (!parentId || activeItemId === overItemId) return
-
-    const siblings = items
-      .filter((item) => item.parent_id === parentId && item.type === itemType)
-      .sort((a, b) => a.sort_order - b.sort_order)
-
-    const oldIndex = siblings.findIndex((item) => item.id === activeItemId)
-    const newIndex = siblings.findIndex((item) => item.id === overItemId)
-    if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return
-
-    const nextSiblings = [...siblings]
-    const [moved] = nextSiblings.splice(oldIndex, 1)
-    nextSiblings.splice(newIndex, 0, moved)
-
-    await Promise.all(
-      nextSiblings.map((item, index) =>
-        window.electronAPI.database.updateItemSortOrder(item.id, index)
-      )
-    )
-    await refreshExecutionItems()
-  }, [items, refreshExecutionItems])
-
   // 处理点击任务项 - 联动左侧选中态（需要滚动）
   const handleTaskClick = (task: DailyTask) => {
     setSelectedTaskId(task.id)
     setSelectedExecutionItemId(null)
-    onSelectionTitleChange?.({ id: task.id, title: task.content })
     if (!onSetActiveObjective) return
 
     // 优先使用已建立的关联 ID；如果是手动任务没有关联，则按标题匹配现有 TODO 做联动
@@ -446,20 +177,14 @@ export const MainBoard: React.FC<MainBoardProps> = ({
     }
   }
 
-  useEffect(() => {
-    if (!selectedTaskId) {
-      onSelectionTitleChange?.(null)
-      return
-    }
-
-    const selectedTask = tasks.find((task) => task.id === selectedTaskId)
-    onSelectionTitleChange?.(selectedTask ? { id: selectedTask.id, title: selectedTask.content } : null)
-  }, [onSelectionTitleChange, selectedTaskId, tasks])
+  const handleHideFocusPanel = useCallback((taskId: string) => {
+    patchFocusSession(taskId, { panelOpen: false })
+  }, [patchFocusSession])
 
   useDndMonitor({
     onDragStart: (event) => {
       const activeData = event.active.data.current as { dragKind?: string } | undefined
-      if (activeData?.dragKind === 'mainboard-sort' && String(event.active.id).startsWith(`${dndScope}-task:`)) {
+      if (activeData?.dragKind === 'taskboard-sort' && String(event.active.id).startsWith(`${dndScope}-task:`)) {
         setActiveSortTaskId(String(event.active.id))
       } else if (activeData?.dragKind === 'execution-child-sort' && String(event.active.id).startsWith(`${dndScope}-execution:`)) {
         setActiveChildSortId(String(event.active.id))
@@ -469,8 +194,8 @@ export const MainBoard: React.FC<MainBoardProps> = ({
       const activeData = event.active.data.current as { dragKind?: string } | undefined
       const overData = event.over?.data.current as { dragKind?: string } | undefined
       if (
-        activeData?.dragKind === 'mainboard-sort' &&
-        overData?.dragKind === 'mainboard-sort' &&
+        activeData?.dragKind === 'taskboard-sort' &&
+        overData?.dragKind === 'taskboard-sort' &&
         String(event.active.id).startsWith(`${dndScope}-task:`) &&
         String(event.over?.id).startsWith(`${dndScope}-task:`)
       ) {
@@ -510,7 +235,7 @@ export const MainBoard: React.FC<MainBoardProps> = ({
         return
       }
 
-      if (activeData?.dragKind !== 'mainboard-sort' || overData?.dragKind !== 'mainboard-sort' || !overId || activeId === overId) {
+      if (activeData?.dragKind !== 'taskboard-sort' || overData?.dragKind !== 'taskboard-sort' || !overId || activeId === overId) {
         return
       }
 
@@ -537,7 +262,7 @@ export const MainBoard: React.FC<MainBoardProps> = ({
 
   return (
     <>
-    <DroppableMainBoard dropZoneId={dropZoneId} className={className} glassMode={glassMode}>
+    <DroppableTaskBoard dropZoneId={dropZoneId} className={className} glassMode={glassMode}>
       {/* 日历 Header */}
       <CalendarHeader
         selectedDate={selectedDate}
@@ -617,7 +342,7 @@ export const MainBoard: React.FC<MainBoardProps> = ({
                     onUpdateContent={onUpdateTaskContent}
                     onMoveToToday={onMoveTaskToToday}
                     onClick={() => handleTaskClick(taskWithColor)}
-                    isHighlighted={highlightedTaskId === task.id}
+                    isHighlighted={false}
                     isRelationHighlighted={relationHighlightedTaskId === task.id}
                     highlightedSourceItemIds={highlightedSourceItemIds}
                     isSelected={selectedTaskId === task.id}
@@ -627,8 +352,7 @@ export const MainBoard: React.FC<MainBoardProps> = ({
                     activeChildSortId={activeChildSortId}
                     onStartFocus={handleStartFocus}
                     onResumeFocus={(task) => handleStartFocus(task)}
-                    focusDurationLabel={focusSessions[task.id] ? formatFocusDuration(getFocusElapsedMs(focusSessions[task.id], focusNow)) : null}
-                    focusState={focusSessions[task.id] ? (focusSessions[task.id].isRunning ? 'running' : 'paused') : null}
+                    focusSession={focusSessions[task.id] ?? null}
                     isFocusActive={Boolean(focusSessions[task.id])}
                     laneMode={laneMode}
                     collapsedExecutionKrIds={collapsedExecutionKrIds}
@@ -673,7 +397,7 @@ export const MainBoard: React.FC<MainBoardProps> = ({
           <TaskChatComposer onSubmit={handleCreateTask} disabled={isLoading} />
         </div>
       ) : null}
-    </DroppableMainBoard>
+    </DroppableTaskBoard>
 
     {Object.values(focusSessions)
       .filter((session) => session.panelOpen)
@@ -682,7 +406,7 @@ export const MainBoard: React.FC<MainBoardProps> = ({
           key={session.taskId}
           session={session}
           onUpdateSession={patchFocusSession}
-          onHidePanel={(taskId) => patchFocusSession(taskId, { panelOpen: false })}
+          onHidePanel={handleHideFocusPanel}
           onCompleteSession={removeFocusSession}
           onAbandonSession={removeFocusSession}
         />
@@ -691,7 +415,7 @@ export const MainBoard: React.FC<MainBoardProps> = ({
   )
 }
 
-export default MainBoard
+export default TaskBoard
 
 const ExecutionEntry: React.FC<{
   task: DailyTask
@@ -721,6 +445,7 @@ const ExecutionEntry: React.FC<{
   activeChildSortId?: string | null
   focusDurationLabel?: string | null
   focusState?: 'running' | 'paused' | null
+  focusSession?: FocusSessionRecord | null
   isFocusActive?: boolean
   laneMode?: boolean
   collapsedExecutionKrIds: Set<string>
@@ -755,8 +480,7 @@ const ExecutionEntry: React.FC<{
   isSorting,
   showSortInsertion,
   activeChildSortId,
-  focusDurationLabel,
-  focusState,
+  focusSession,
   isFocusActive = false,
   laneMode = false,
   collapsedExecutionKrIds,
@@ -849,8 +573,7 @@ const ExecutionEntry: React.FC<{
       isSorting={isSorting}
       showSortInsertion={showSortInsertion}
       preferDeleteFirst={preferDeleteFirst}
-      focusDurationLabel={focusDurationLabel}
-      focusState={focusState}
+      focusSession={focusSession}
       isFocusActive={isFocusActive}
     />
   )
@@ -911,7 +634,7 @@ const ObjectiveExecutionSection: React.FC<{
 
   return (
     <div
-      data-mainboard-task-id={task.id}
+      data-taskboard-task-id={task.id}
       onClick={onClick}
       onContextMenu={handleContextMenu}
       className={`relative transition-all duration-300 ${laneMode ? '' : 'mx-6 mb-3'} ${isHighlighted ? 'animate-pulse-highlight' : ''}`}
@@ -1082,7 +805,7 @@ const KRExecutionColumn: React.FC<{
 
   return (
     <div
-      data-mainboard-task-id={task.id}
+      data-taskboard-task-id={task.id}
       onClick={onClick}
       onContextMenu={handleContextMenu}
       className={`
@@ -1626,7 +1349,7 @@ const SortableExecutionColumn: React.FC<{
 const SortableTaskRow: React.FC<{ sortableId: string; taskId: string; title: string; children: React.ReactNode }> = ({ sortableId, taskId, title, children }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: sortableId,
-    data: { dragKind: 'mainboard-sort', title, type: 'TODO' },
+    data: { dragKind: 'taskboard-sort', title, type: 'TODO' },
   })
 
   return (
@@ -1634,7 +1357,7 @@ const SortableTaskRow: React.FC<{ sortableId: string; taskId: string; title: str
       ref={setNodeRef}
       {...attributes}
       {...listeners}
-      data-mainboard-sort-id={taskId}
+      data-taskboard-sort-id={taskId}
       className="relative"
       style={{
         transform: isDragging ? CSS.Transform.toString(transform) : undefined,

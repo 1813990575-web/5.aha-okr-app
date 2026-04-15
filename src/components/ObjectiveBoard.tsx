@@ -5,7 +5,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { ArrowUp, CalendarDays, Check, Eye, ImagePlus, MoreHorizontal, Plus, X } from 'lucide-react'
 import type { DailyTask, Item } from '../store/index'
 import { getObjectiveColorOption } from './Sidebar'
-import { MainBoard } from './MainBoard'
+import { TodayFloatingTaskBoard } from './daily/TodayFloatingTaskBoard'
 import { TodoThreadPopover, getLatestTodoThreadPreview, subscribeTodoThreadUpdates } from './daily/TodoThreadPopover'
 
 interface ObjectiveBoardProps {
@@ -18,7 +18,6 @@ interface ObjectiveBoardProps {
   onToggleTask: (id: string) => void | Promise<void>
   onDeleteTask: (id: string) => void | Promise<void>
   onUpdateTaskContent?: (id: string, content: string) => void | Promise<void>
-  onUpdateTaskNote?: (id: string, note: string) => void | Promise<void>
   onMoveTaskToToday?: (id: string) => void | Promise<void>
   onReorderTasks?: (orderedTaskIds: string[]) => void | Promise<void>
   isPastDate?: boolean
@@ -114,11 +113,11 @@ function sortByOrder<T extends { sort_order: number }>(items: T[]): T[] {
   return [...items].sort((a, b) => a.sort_order - b.sort_order)
 }
 
-const FLOATING_PANEL_TRANSITION_MS = 260
 const FLOATING_PANEL_SAFE_RIGHT_PADDING = 520
 const BOARD_BASE_RIGHT_PADDING = 32
 const VISION_PLACEHOLDER = '这里是愿景备注示例：记录你想成为的样子与每天的推进。'
 const VISION_INITIAL_MESSAGES: VisionMessage[] = []
+const MAX_OBJECTIVE_DEADLINE_DAYS = 999
 
 function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -145,6 +144,18 @@ function formatVisionDateTime(timestamp: number): string {
   }).format(new Date(timestamp))
 }
 
+function normalizeDeadlineInputValue(deadlineAt?: string | null): string {
+  if (!deadlineAt) return ''
+  const normalized = deadlineAt.trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) return normalized
+  const parsed = new Date(normalized)
+  if (Number.isNaN(parsed.getTime())) return ''
+  const year = parsed.getFullYear()
+  const month = String(parsed.getMonth() + 1).padStart(2, '0')
+  const day = String(parsed.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 function getObjectiveCountdownDays(deadlineAt: string): number {
   const target = new Date(deadlineAt)
   target.setHours(0, 0, 0, 0)
@@ -153,6 +164,10 @@ function getObjectiveCountdownDays(deadlineAt: string): number {
   today.setHours(0, 0, 0, 0)
 
   return Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+}
+
+function isObjectiveDeadlineTooFar(deadlineAt: string): boolean {
+  return getObjectiveCountdownDays(deadlineAt) > MAX_OBJECTIVE_DEADLINE_DAYS
 }
 
 function formatObjectiveDeadline(deadlineAt?: string | null): { countdown: string; date: string; tone: string } | null {
@@ -208,13 +223,16 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
   const [highlightedTodoId, setHighlightedTodoId] = useState<string | null>(null)
   const [highlightedFloatingTaskId, setHighlightedFloatingTaskId] = useState<string | null>(null)
   const [isFloatingPanelOpen, setIsFloatingPanelOpen] = useState(false)
-  const [isFloatingPanelMounted, setIsFloatingPanelMounted] = useState(false)
+  const [isFloatingPanelPrepared, setIsFloatingPanelPrepared] = useState(false)
   const [isVisionDialogOpen, setIsVisionDialogOpen] = useState(false)
+  const [isDeadlineEditorOpen, setIsDeadlineEditorOpen] = useState(false)
+  const [deadlineDraft, setDeadlineDraft] = useState('')
+  const [deadlineError, setDeadlineError] = useState('')
   const [visionMessages, setVisionMessages] = useState<VisionMessage[]>(VISION_INITIAL_MESSAGES)
-  const floatingPanelCloseTimerRef = useRef<number | null>(null)
   const todoHighlightTimerRef = useRef<number | null>(null)
   const floatingTaskHighlightTimerRef = useRef<number | null>(null)
   const boardScrollRef = useRef<HTMLDivElement | null>(null)
+  const deadlineEditorRef = useRef<HTMLDivElement | null>(null)
   const todoItemRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const pendingTodoFocusRef = useRef<string | null>(null)
 
@@ -273,10 +291,51 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
     [boardObjective?.objective_deadline_at]
   )
 
+  useEffect(() => {
+    setDeadlineDraft(normalizeDeadlineInputValue(boardObjective?.objective_deadline_at ?? null))
+    setDeadlineError('')
+  }, [boardObjective?.objective_deadline_at])
+
   const refreshAfterMutation = useCallback(async () => {
     await loadItems({ showLoading: false })
     await onObjectiveChanged?.()
   }, [loadItems, onObjectiveChanged])
+
+  const closeDeadlineEditor = useCallback(() => {
+    setIsDeadlineEditorOpen(false)
+    setDeadlineDraft(normalizeDeadlineInputValue(boardObjective?.objective_deadline_at ?? null))
+    setDeadlineError('')
+  }, [boardObjective?.objective_deadline_at])
+
+  const openDeadlineEditor = useCallback(() => {
+    setDeadlineDraft(normalizeDeadlineInputValue(boardObjective?.objective_deadline_at ?? null))
+    setDeadlineError('')
+    setIsDeadlineEditorOpen(true)
+  }, [boardObjective?.objective_deadline_at])
+
+  const saveObjectiveDeadline = useCallback(async () => {
+    if (!deadlineDraft) return
+    if (isObjectiveDeadlineTooFar(deadlineDraft)) {
+      setDeadlineError(`截止日期最长只能设置到 ${MAX_OBJECTIVE_DEADLINE_DAYS} 天内`)
+      return
+    }
+    await window.electronAPI.database.updateItem(objective.id, {
+      objective_deadline_at: deadlineDraft,
+    })
+    await refreshAfterMutation()
+    setIsDeadlineEditorOpen(false)
+    setDeadlineError('')
+  }, [deadlineDraft, objective.id, refreshAfterMutation])
+
+  const clearObjectiveDeadline = useCallback(async () => {
+    await window.electronAPI.database.updateItem(objective.id, {
+      objective_deadline_at: null,
+    })
+    await refreshAfterMutation()
+    setDeadlineDraft('')
+    setDeadlineError('')
+    setIsDeadlineEditorOpen(false)
+  }, [objective.id, refreshAfterMutation])
 
   const reorderTodos = useCallback(async (activeTodoId: string, overTodoId: string, krId: string) => {
     if (!activeTodoId || !overTodoId || activeTodoId === overTodoId || !krId) return
@@ -412,10 +471,30 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
   }, [boardMenuPosition])
 
   useEffect(() => {
-    return () => {
-      if (floatingPanelCloseTimerRef.current) {
-        window.clearTimeout(floatingPanelCloseTimerRef.current)
+    if (!isDeadlineEditorOpen) return
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!deadlineEditorRef.current?.contains(event.target as Node)) {
+        closeDeadlineEditor()
       }
+    }
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        closeDeadlineEditor()
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [closeDeadlineEditor, isDeadlineEditorOpen])
+
+  useEffect(() => {
+    return () => {
       if (todoHighlightTimerRef.current) {
         window.clearTimeout(todoHighlightTimerRef.current)
       }
@@ -436,7 +515,7 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
     }, 1350)
 
     window.requestAnimationFrame(() => {
-      const element = document.querySelector(`[data-mainboard-task-id="${taskId}"]`)
+      const element = document.querySelector(`[data-taskboard-task-id="${taskId}"]`)
       if (element instanceof HTMLElement) {
         element.scrollIntoView({ behavior: 'smooth', block: 'center' })
       }
@@ -534,29 +613,31 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
     focusTodoInBoard(targetTodo.id)
   }, [focusTodoInBoard, items, objective.id])
 
-  const openFloatingPanel = useCallback(() => {
-    if (floatingPanelCloseTimerRef.current) {
-      window.clearTimeout(floatingPanelCloseTimerRef.current)
-      floatingPanelCloseTimerRef.current = null
+  useEffect(() => {
+    if (isFloatingPanelPrepared) return
+
+    const preparePanel = () => setIsFloatingPanelPrepared(true)
+    const requestIdle = (window as Window & { requestIdleCallback?: (callback: () => void) => number }).requestIdleCallback
+
+    if (requestIdle) {
+      const idleId = requestIdle(preparePanel)
+      return () => window.cancelIdleCallback?.(idleId)
     }
-    setIsFloatingPanelMounted(true)
-    window.requestAnimationFrame(() => {
-      setIsFloatingPanelOpen(true)
-    })
+
+    const timer = window.setTimeout(preparePanel, 180)
+    return () => window.clearTimeout(timer)
+  }, [isFloatingPanelPrepared])
+
+  const openFloatingPanel = useCallback(() => {
+    setIsFloatingPanelPrepared(true)
+    setIsFloatingPanelOpen(true)
   }, [])
 
   const closeFloatingPanel = useCallback(() => {
     setIsFloatingPanelOpen(false)
-    if (floatingPanelCloseTimerRef.current) {
-      window.clearTimeout(floatingPanelCloseTimerRef.current)
-    }
-    floatingPanelCloseTimerRef.current = window.setTimeout(() => {
-      setIsFloatingPanelMounted(false)
-      floatingPanelCloseTimerRef.current = null
-    }, FLOATING_PANEL_TRANSITION_MS)
   }, [])
 
-  const boardRightPadding = isFloatingPanelMounted ? FLOATING_PANEL_SAFE_RIGHT_PADDING : BOARD_BASE_RIGHT_PADDING
+  const boardRightPadding = isFloatingPanelOpen ? FLOATING_PANEL_SAFE_RIGHT_PADDING : BOARD_BASE_RIGHT_PADDING
 
   const openVisionDialog = useCallback(() => {
     setIsVisionDialogOpen(true)
@@ -690,18 +771,71 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
           </div>
 
           <div className="mt-2 flex max-w-[760px] flex-col gap-1.5">
-            <div className="flex items-start gap-2 rounded-[10px] px-1 py-0.5 text-[14px] leading-[1.55] text-[#6d7482]">
-              <CalendarDays className="mt-[2px] h-4 w-4 flex-shrink-0 text-[#8a91a0]" strokeWidth={1.9} />
-              <span className="min-w-0 flex-1 truncate">
-                {objectiveDeadlineMeta ? (
-                  <>
-                    <span className={`font-medium ${objectiveDeadlineMeta.tone}`}>{objectiveDeadlineMeta.countdown}</span>
-                    <span className="ml-2 text-[#9aa1ad]">{objectiveDeadlineMeta.date}</span>
-                  </>
-                ) : (
-                  <span className="text-[#9aa1ad]">添加截止日期</span>
-                )}
-              </span>
+            <div ref={deadlineEditorRef} className="relative">
+              <button
+                type="button"
+                onClick={openDeadlineEditor}
+                className="flex w-full items-start gap-2 rounded-[10px] px-1 py-0.5 text-left text-[14px] leading-[1.55] text-[#6d7482] transition-colors hover:bg-black/[0.03] hover:text-[#575f6f]"
+              >
+                <CalendarDays className="mt-[2px] h-4 w-4 flex-shrink-0 text-[#8a91a0]" strokeWidth={1.9} />
+                <span className="min-w-0 flex-1 truncate">
+                  {objectiveDeadlineMeta ? (
+                    <>
+                      <span className={`font-medium ${objectiveDeadlineMeta.tone}`}>{objectiveDeadlineMeta.countdown}</span>
+                      <span className="ml-2 text-[#9aa1ad]">{objectiveDeadlineMeta.date}</span>
+                    </>
+                  ) : (
+                    <span className="text-[#9aa1ad]">添加截止日期</span>
+                  )}
+                </span>
+              </button>
+
+              {isDeadlineEditorOpen ? (
+                <div className="absolute left-0 top-[calc(100%+8px)] z-20 w-[280px] rounded-[14px] border border-black/[0.06] bg-white/95 p-3 shadow-[0_16px_40px_rgba(15,23,42,0.14)] backdrop-blur-xl">
+                  <div className="text-[12px] font-medium text-[#5f6673]">设置截止日期</div>
+                  <input
+                    autoFocus
+                    type="date"
+                    value={deadlineDraft}
+                    onChange={(e) => {
+                      const nextValue = e.target.value
+                      setDeadlineDraft(nextValue)
+                      if (!nextValue) {
+                        setDeadlineError('')
+                        return
+                      }
+                      if (isObjectiveDeadlineTooFar(nextValue)) {
+                        setDeadlineError(`截止日期最长只能设置到 ${MAX_OBJECTIVE_DEADLINE_DAYS} 天内`)
+                        return
+                      }
+                      setDeadlineError('')
+                    }}
+                    className={`mt-2 w-full rounded-[10px] border bg-white px-3 py-2 text-[13px] text-[#2e3137] outline-none focus:border-[#272729]/30 ${
+                      deadlineError ? 'border-[#f6465d]/40' : 'border-black/[0.08]'
+                    }`}
+                  />
+                  <div className={`mt-2 text-[12px] ${deadlineError ? 'text-[#d14a5f]' : 'text-[#9aa1ad]'}`}>
+                    {deadlineError || `最多支持 ${MAX_OBJECTIVE_DEADLINE_DAYS} 天，左侧决定是否显示倒计时图标`}
+                  </div>
+                  <div className="mt-3 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void saveObjectiveDeadline()}
+                      disabled={!deadlineDraft || Boolean(deadlineError)}
+                      className="rounded-[10px] bg-[#272729] px-3 py-1.5 text-[12px] font-medium text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      保存
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void clearObjectiveDeadline()}
+                      className="rounded-[10px] border border-black/[0.08] px-3 py-1.5 text-[12px] font-medium text-[#4c5563] transition-colors hover:bg-black/[0.03]"
+                    >
+                      清除
+                    </button>
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             <button
@@ -785,28 +919,26 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
         onAppendMessage={appendVisionMessage}
       />
 
-      {isFloatingPanelMounted ? (
+      {isFloatingPanelPrepared ? (
         <div
-          className={`fixed inset-y-6 right-6 z-[220] flex w-[460px] max-w-[calc(100vw-36px)] flex-col overflow-hidden rounded-[18px] border border-white/58 transition-all duration-300 ${
+          className={`fixed inset-y-6 right-6 z-[220] flex w-[460px] max-w-[calc(100vw-36px)] flex-col overflow-hidden rounded-[18px] border transition-[opacity,transform] duration-180 ease-out ${
             isFloatingPanelOpen
-              ? 'translate-y-0 scale-100 opacity-100 pointer-events-auto'
-              : 'translate-y-8 scale-[0.18] opacity-0 pointer-events-none'
+              ? 'translate-y-0 opacity-100 pointer-events-auto'
+              : 'translate-y-3 opacity-0 pointer-events-none'
           }`}
           style={{
-            transformOrigin: 'calc(100% - 20px) calc(100% - 20px)',
-            background: 'linear-gradient(180deg, rgba(255,255,255,0.34) 0%, rgba(242,242,242,0.20) 100%)',
-            backdropFilter: 'blur(28px) saturate(170%)',
-            WebkitBackdropFilter: 'blur(28px) saturate(170%)',
-            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.72), 0 30px 72px rgba(15,23,42,0.20)',
+            background: 'linear-gradient(180deg, rgba(255,255,255,0.94) 0%, rgba(248,249,251,0.96) 100%)',
+            borderColor: 'rgba(215,220,228,0.88)',
+            boxShadow: '0 18px 42px rgba(15,23,42,0.14)',
+            willChange: 'transform, opacity',
           }}
         >
           <button
             type="button"
-            onMouseDown={(event) => {
-              event.preventDefault()
+            onClick={(event) => {
               event.stopPropagation()
+              closeFloatingPanel()
             }}
-            onClick={closeFloatingPanel}
             className="app-no-drag absolute right-3 top-3 z-[240] flex h-8 w-8 items-center justify-center text-[#7f8793] transition-colors hover:text-[#5f6673]"
             aria-label="关闭面板"
           >
@@ -814,7 +946,7 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
           </button>
 
           <div className="relative min-h-0 flex-1 overflow-hidden">
-            <MainBoard
+            <TodayFloatingTaskBoard
               tasks={tasks}
               selectedDate={selectedDate}
               onDateChange={onDateChange}
@@ -829,12 +961,6 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
               onReorderTasks={onReorderTasks}
               onExecutionItemsChanged={onObjectiveChanged}
               okrRefreshTrigger={refreshTrigger}
-              dndScope="floating-cart"
-              dropZoneId="floating-cart-drop-zone"
-              className="h-full"
-              taskComposerMode="chat-bottom"
-              enableHeaderDragRegion={false}
-              glassMode
             />
           </div>
           {dragNotice ? (
@@ -851,11 +977,18 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
         type="button"
         onClick={openFloatingPanel}
         aria-label={isFloatingPanelOpen ? '关闭今日待办' : '打开今日待办'}
-        className={`absolute bottom-10 right-10 z-[210] flex h-[68px] w-[68px] items-center justify-center rounded-full border border-white/70 bg-[linear-gradient(180deg,#ffffff,#eef2f7)] text-[#272729] shadow-[0_16px_32px_rgba(15,23,42,0.16)] transition-all duration-200 hover:scale-[1.03] active:scale-[0.98] ${
-          isFloatingPanelMounted ? 'pointer-events-none scale-90 opacity-0' : 'opacity-100'
+        className={`absolute bottom-10 right-10 z-[210] flex h-[68px] w-[68px] items-center justify-center rounded-full border text-white transition-all duration-200 hover:scale-[1.03] active:scale-[0.98] ${
+          isFloatingPanelOpen ? 'pointer-events-none scale-90 opacity-0' : 'opacity-100'
         }`}
+        style={{
+          background: '#272729',
+          borderColor: 'rgba(255,255,255,0.88)',
+          boxShadow: '0 18px 34px rgba(15,23,42,0.22)',
+        }}
       >
-        <span className="select-none text-[28px] font-bold leading-none tracking-[-0.04em]">今</span>
+        <span className="select-none text-[28px] font-bold leading-none tracking-[-0.04em] text-white">
+          今
+        </span>
       </button>
 
     </div>
@@ -1232,7 +1365,7 @@ const SortableKrColumn: React.FC<SortableKrColumnProps> = ({
     <div
       ref={setNodeRef}
       style={style}
-      className={`w-[264px] flex-shrink-0 ${isDragging || isSorting ? 'z-10 opacity-90' : ''}`}
+      className={`w-[304px] flex-shrink-0 ${isDragging || isSorting ? 'z-10 opacity-90' : ''}`}
       data-kr-column="true"
       {...attributes}
       {...listeners}

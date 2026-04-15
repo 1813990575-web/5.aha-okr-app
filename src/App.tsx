@@ -12,7 +12,6 @@ import { OkrWorkspace } from './workspaces/okr/OkrWorkspace'
 function App() {
   const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceId>('okr')
   const [sliderStyle, setSliderStyle] = useState<'bead' | 'pill'>('bead')
-  const [okrViewMode, setOkrViewMode] = useState<'daily' | 'objective-board'>('daily')
   const [focusedObjectiveBoard, setFocusedObjectiveBoard] = useState<{ id: string; title: string; color?: string | null } | null>(null)
 
   // 左侧选中状态 - 用于中间面板点击后联动左侧选中
@@ -21,13 +20,10 @@ function App() {
   // 是否自动滚动到选中项（中间面板触发时为 true，左侧内部点击时为 false）
   const [shouldScrollToActive, setShouldScrollToActive] = useState<boolean>(false)
 
-  // 状态提升：dailyTasks 状态从 MainBoard 提升到 App.tsx
+  // 状态提升：dailyTasks 状态从任务板提升到 App.tsx
   const [tasks, setTasks] = useState<DailyTask[]>([])
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
 
-  // 新拖入任务的高亮状态
-  const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null)
-  const [highlightedSourceItemIds, setHighlightedSourceItemIds] = useState<string[]>([])
   const [dragNotice, setDragNotice] = useState<string | null>(null)
   const [apiUnavailableMessage, setApiUnavailableMessage] = useState<string | null>(null)
   // Sidebar 刷新触发器 - 用于中间面板勾选后刷新左侧状态
@@ -57,6 +53,46 @@ function App() {
     loadTasks()
   }, [loadTasks])
 
+  useEffect(() => {
+    let cancelled = false
+
+    const syncFocusedObjectiveBoard = async () => {
+      try {
+        const allItems = await window.electronAPI.database.getAllItems()
+        const objectiveItems = allItems.filter((item: { type: string }) => item.type === 'O')
+        const target =
+          objectiveItems.find((item: { id: string }) => item.id === activeObjective) ||
+          objectiveItems[0]
+
+        if (!target || cancelled) return
+
+        setFocusedObjectiveBoard((current) => {
+          if (
+            current?.id === target.id &&
+            current?.title === target.title &&
+            current?.color === (target.color ?? null)
+          ) {
+            return current
+          }
+
+          return {
+            id: target.id,
+            title: target.title,
+            color: target.color ?? null,
+          }
+        })
+      } catch (error) {
+        console.error('[App] 同步分栏目标失败:', error)
+      }
+    }
+
+    void syncFocusedObjectiveBoard()
+
+    return () => {
+      cancelled = true
+    }
+  }, [activeObjective, sidebarRefreshTrigger])
+
   // 处理选中请求 - 点击中间面板任务时切换左侧选中态（需要滚动）
   const handleSetActiveObjective = useCallback((itemId: string, shouldScroll: boolean = false) => {
     setActiveObjective(itemId)
@@ -81,43 +117,18 @@ function App() {
     setSidebarRefreshTrigger(prev => prev + 1)
   }, [])
 
-  const handleToggleObjectiveBoardMode = useCallback((objective?: { id: string; title: string; color?: string | null }) => {
-    setOkrViewMode((currentMode) => {
-      if (currentMode === 'objective-board') {
-        if (objective) {
-          setActiveObjective(objective.id)
-          setShouldScrollToActive(false)
-          setFocusedObjectiveBoard(objective)
-          return 'objective-board'
-        }
-        return 'daily'
-      }
-
-      if (objective) {
-        setActiveObjective(objective.id)
-        setShouldScrollToActive(false)
-        setFocusedObjectiveBoard(objective)
-      }
-
-      return 'objective-board'
-    })
+  const handleSwitchObjectiveBoard = useCallback((objective?: { id: string; title: string; color?: string | null }) => {
+    if (!objective) return
+    setActiveObjective(objective.id)
+    setShouldScrollToActive(false)
+    setFocusedObjectiveBoard(objective)
   }, [])
 
   const showTaskFeedback = useCallback((taskId: string, notice?: string, sourceItemIds?: Array<string | null | undefined>) => {
-    setHighlightedTaskId(taskId)
-    window.setTimeout(() => setHighlightedTaskId(null), 2200)
-    const normalizedSourceIds = Array.from(new Set((sourceItemIds || []).filter(Boolean) as string[]))
-    if (normalizedSourceIds.length > 0) {
-      setHighlightedSourceItemIds(normalizedSourceIds)
-      window.setTimeout(() => {
-        setHighlightedSourceItemIds((current) =>
-          current.some((id) => normalizedSourceIds.includes(id)) ? [] : current
-        )
-      }, 2200)
-    }
+    void sourceItemIds
 
     window.requestAnimationFrame(() => {
-      const element = document.querySelector(`[data-mainboard-task-id="${taskId}"]`)
+      const element = document.querySelector(`[data-taskboard-task-id="${taskId}"]`)
       if (element instanceof HTMLElement) {
         element.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
       }
@@ -132,12 +143,6 @@ function App() {
   const createLinkedExecutionEntry = useCallback(async (
     item: { id: string; title: string; color?: string | null; type?: DragItem['type'] }
   ) => {
-    if (okrViewMode === 'daily' && item.type === 'O') {
-      setDragNotice('当前执行区最高只接受关键结果，请改为拖入关键结果')
-      window.setTimeout(() => setDragNotice(null), 800)
-      return
-    }
-
     const allItems = await window.electronAPI.database.getAllItems()
     const getDescendantIds = (rootId: string): string[] => {
       const descendants: string[] = []
@@ -232,7 +237,7 @@ function App() {
         ? descendantTasks.map((task) => task.sourceItemId ?? task.linkedGoalId)
         : []
     )
-  }, [okrViewMode, selectedDate, showTaskFeedback, tasks])
+  }, [selectedDate, showTaskFeedback, tasks])
 
   // 处理加入今日待办 - 从左侧右键菜单添加
   const handleAddToDailyTasks = useCallback(async (item: { id: string; title: string; color?: string | null; type?: DragItem['type'] }) => {
@@ -361,16 +366,6 @@ function App() {
     }
   }, [])
 
-  const handleUpdateTaskNote = useCallback(async (id: string, note: string) => {
-    setTasks((prev) => prev.map((task) => (task.id === id ? { ...task, note } : task)))
-    try {
-      await window.electronAPI.dailyTasks.updateTask(id, { note })
-    } catch (error) {
-      console.error('[App] 更新任务笔记失败:', error)
-      await loadTasks()
-    }
-  }, [loadTasks])
-
   // 判断当前选中的日期是否为过去的日期
   const isPastDate = useCallback(() => {
     const today = new Date()
@@ -411,13 +406,10 @@ function App() {
                   sliderStyle={sliderStyle}
                   tasks={tasks}
                   selectedDate={selectedDate}
-                  highlightedTaskId={highlightedTaskId}
-                  highlightedSourceItemIds={highlightedSourceItemIds}
                   focusedObjectiveBoard={focusedObjectiveBoard}
-                  okrViewMode={okrViewMode}
                   onSetActiveObjective={handleSetActiveObjective}
                   onAddToDailyTasks={handleAddToDailyTasks}
-                  onToggleObjectiveBoardMode={handleToggleObjectiveBoardMode}
+                  onSwitchObjectiveBoard={handleSwitchObjectiveBoard}
                   onOkrItemsChanged={handleOkrItemsChanged}
                   onDateChange={setSelectedDate}
                   onCreateTask={handleCreateTask}
@@ -427,7 +419,6 @@ function App() {
                   onMoveTaskToToday={handleMoveTaskToToday}
                   onReorderTasks={handleReorderTasks}
                   onExecutionItemsChanged={handleExecutionItemsChanged}
-                  onUpdateTaskNote={handleUpdateTaskNote}
                   isPastDate={isPastDate()}
                   dragNotice={dragNotice}
                 />
@@ -436,7 +427,7 @@ function App() {
           </div>
         </div>
       </DragProvider>
-      {dragNotice && okrViewMode !== 'objective-board' && (
+      {dragNotice && (
         <div className="pointer-events-none fixed bottom-6 left-1/2 z-[120] -translate-x-1/2">
           <div className="rounded-full border border-white/10 bg-[rgba(39,39,41,0.92)] px-4 py-2 text-[14px] font-medium text-white shadow-[0_16px_32px_rgba(15,23,42,0.22)] backdrop-blur-xl">
             {dragNotice}

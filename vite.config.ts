@@ -61,6 +61,19 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return
+          if (id.includes('/react/') || id.includes('/react-dom/')) return 'vendor-react'
+          if (id.includes('@dnd-kit')) return 'vendor-dnd'
+          if (id.includes('framer-motion')) return 'vendor-motion'
+          if (id.includes('@tiptap')) return 'vendor-editor'
+          if (id.includes('lucide-react')) return 'vendor-icons'
+          return 'vendor'
+        },
+      },
+    },
   },
   // 确保在开发模式下也能访问到 preload 脚本
   server: {

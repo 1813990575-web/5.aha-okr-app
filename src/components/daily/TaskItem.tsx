@@ -1,8 +1,9 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react'
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, Trash2, CalendarArrowDown, Timer } from 'lucide-react'
 import type { DailyTask } from '../../store/index'
 import { DAILY_TASK_ROW_BASE_CLASS } from './taskRowStyles'
+import { type FocusSessionRecord, formatFocusDuration, getFocusElapsedMs } from './focusSessionStore'
 
 interface TaskItemProps {
   task: DailyTask & { origin?: string | null; color?: string | null }
@@ -21,8 +22,7 @@ interface TaskItemProps {
   isSorting?: boolean
   showSortInsertion?: boolean
   preferDeleteFirst?: boolean
-  focusDurationLabel?: string | null
-  focusState?: 'running' | 'paused' | null
+  focusSession?: FocusSessionRecord | null
   onResumeFocus?: (task: DailyTask) => void
   isFocusActive?: boolean
 }
@@ -43,8 +43,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   isSorting = false,
   showSortInsertion = false,
   preferDeleteFirst = false,
-  focusDurationLabel = null,
-  focusState = null,
+  focusSession = null,
   onResumeFocus,
   isFocusActive = false,
 }) => {
@@ -54,6 +53,10 @@ export const TaskItem: React.FC<TaskItemProps> = ({
 
   // 获取主题色
   const themeColor = task.color || (isOkrDerived ? '#3860BE' : null)
+  const miniTimerState = useMemo(() => {
+    if (!focusSession) return null
+    return focusSession.isRunning ? 'running' : 'paused'
+  }, [focusSession])
 
   // 右键菜单状态
   const [showContextMenu, setShowContextMenu] = useState(false)
@@ -165,7 +168,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
         onClick={onClick}
         onContextMenu={handleContextMenu}
         onDoubleClick={handleDoubleClick}
-        data-mainboard-task-id={task.id}
+        data-taskboard-task-id={task.id}
         className={`
           ${DAILY_TASK_ROW_BASE_CLASS} cursor-pointer
           ${task.isDone ? 'opacity-50' : ''}
@@ -246,7 +249,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           )}
         </div>
 
-        {focusDurationLabel ? (
+        {focusSession ? (
           <button
             type="button"
             onClick={(event) => {
@@ -262,12 +265,12 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           >
             <span
               className={`h-2 w-2 flex-shrink-0 rounded-full ${
-                focusState === 'running'
+                miniTimerState === 'running'
                   ? 'animate-pulse bg-[#F6465D] shadow-[0_0_0_3px_rgba(246,70,93,0.12)]'
                   : 'bg-[#c9ced6]'
               }`}
             />
-            <span className="font-semibold">{focusDurationLabel}</span>
+            <FocusDurationText session={focusSession} />
           </button>
         ) : null}
 
@@ -319,3 +322,19 @@ export const TaskItem: React.FC<TaskItemProps> = ({
     </>
   )
 }
+
+const FocusDurationText: React.FC<{ session: FocusSessionRecord }> = React.memo(({ session }) => {
+  const [now, setNow] = useState(() => Date.now())
+
+  useEffect(() => {
+    if (!session.isRunning) return
+    const timer = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [session.isRunning])
+
+  const label = useMemo(() => {
+    return formatFocusDuration(getFocusElapsedMs(session, now))
+  }, [now, session])
+
+  return <span className="font-semibold">{label}</span>
+})

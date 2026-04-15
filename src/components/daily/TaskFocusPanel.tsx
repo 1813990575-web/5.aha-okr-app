@@ -36,7 +36,7 @@ function formatThreadTime(timestamp: number) {
   }).format(target)
 }
 
-export const TaskFocusPanel: React.FC<TaskFocusPanelProps> = ({
+export const TaskFocusPanel: React.FC<TaskFocusPanelProps> = React.memo(({
   session,
   onUpdateSession,
   onHidePanel,
@@ -209,12 +209,13 @@ export const TaskFocusPanel: React.FC<TaskFocusPanelProps> = ({
       style={{
         left: session.position?.left ?? 24,
         top: session.position?.top ?? 24,
+        willChange: 'transform, opacity',
       }}
       onClick={(event) => event.stopPropagation()}
     >
       <section
         className="relative overflow-hidden rounded-[28px] border border-[#dcb04a]/80 bg-[linear-gradient(180deg,#f8dc7b_0%,#f5d36a_38%,#f9e2a0_100%)] shadow-[0_24px_64px_rgba(120,82,14,0.24)]"
-        style={{ height: panelHeight }}
+        style={{ height: panelHeight, contain: 'layout paint style' }}
       >
         <div
           className="cursor-grab border-b border-[#cc9b35]/55 px-4 py-3 active:cursor-grabbing"
@@ -390,6 +391,6 @@ export const TaskFocusPanel: React.FC<TaskFocusPanelProps> = ({
     </div>,
     document.body
   )
-}
+})
 
 export default TaskFocusPanel

@@ -32,13 +32,11 @@ import {
   // DailyTasks 操作
   getAllDailyTasks,
   getDailyTasksByDate,
-  getDailyTaskById,
   createDailyTask,
   updateDailyTask,
   deleteDailyTask,
   toggleDailyTaskStatus,
   unlinkDailyTasksByGoalId,
-  getTodayString,
   getAllJournalRecords,
   getJournalRecordsByDate,
   getJournalRecordById,
@@ -261,16 +259,6 @@ function setupIpcHandlers() {
     }
   })
 
-  // 根据 ID 获取 DailyTask
-  ipcMain.handle('daily:getTaskById', async (_, id: string) => {
-    try {
-      return getDailyTaskById(id)
-    } catch (error) {
-      console.error('[IPC] getDailyTaskById 错误:', error)
-      throw error
-    }
-  })
-
   // 创建 DailyTask
   ipcMain.handle('daily:createTask', async (_, data: any) => {
     try {
@@ -307,16 +295,6 @@ function setupIpcHandlers() {
       return toggleDailyTaskStatus(id)
     } catch (error) {
       console.error('[IPC] toggleDailyTaskStatus 错误:', error)
-      throw error
-    }
-  })
-
-  // 获取今天的日期字符串
-  ipcMain.handle('daily:getTodayString', async () => {
-    try {
-      return getTodayString()
-    } catch (error) {
-      console.error('[IPC] getTodayString 错误:', error)
       throw error
     }
   })
