@@ -360,6 +360,7 @@ export const TaskBoard: React.FC<TaskBoardProps> = ({
                     selectedExecutionItemId={selectedExecutionItemId}
                     onSelectExecutionItem={(item) => {
                       setSelectedExecutionItemId(item.id)
+                      onSetActiveObjective?.(item.id, true)
                     }}
                     dndScope={dndScope}
                     preferDeleteFirst={useChatBottomComposer}
@@ -539,6 +540,7 @@ const ExecutionEntry: React.FC<{
         onDeleteTask={onDelete}
         onClick={onClick}
         isHighlighted={isHighlighted}
+        isRelationHighlighted={isRelationHighlighted}
         highlightedSourceItemIds={highlightedSourceItemIds}
         isSorting={isSorting}
         showSortInsertion={showSortInsertion}
@@ -656,8 +658,8 @@ const ObjectiveExecutionSection: React.FC<{
         }}
       >
         <div className="mb-2 flex items-center gap-2 px-6">
-          <ChevronDown className="h-4 w-4 flex-shrink-0 text-[#7f8896]" strokeWidth={2.2} />
-          <div className={`truncate text-[14px] font-semibold text-[#4d5767] ${task.isDone ? 'line-through opacity-55' : ''}`}>
+          <ChevronDown className="h-4 w-4 flex-shrink-0 text-[var(--color-ink-subtle)]" strokeWidth={2.2} />
+          <div className={`truncate text-[14px] font-semibold text-[var(--color-ink-tertiary)] ${task.isDone ? 'line-through opacity-55' : ''}`}>
             {sourceItem.title || task.content || '未命名目标'}
           </div>
         </div>
@@ -760,6 +762,7 @@ const KRExecutionColumn: React.FC<{
   onDeleteTask: (id: string) => void
   onClick?: () => void
   isHighlighted?: boolean
+  isRelationHighlighted?: boolean
   highlightedSourceItemIds?: string[]
   isSorting?: boolean
   showSortInsertion?: boolean
@@ -786,6 +789,7 @@ const KRExecutionColumn: React.FC<{
   onDeleteTask,
   onClick,
   isHighlighted,
+  isRelationHighlighted = false,
   highlightedSourceItemIds = [],
   isSorting,
   showSortInsertion,
@@ -811,7 +815,8 @@ const KRExecutionColumn: React.FC<{
       className={`
         group relative mx-2 mb-1.5 rounded-[14px] transition-all duration-300
         ${isCollapsed ? 'py-0' : 'py-2'}
-        ${isRowHighlighted ? 'bg-[#f8f5ff]' : 'hover:bg-[#f3f5f7]'}
+        ${isRelationHighlighted ? 'objective-board-linked-pulse border border-dashed border-[rgba(246,70,93,0.34)] bg-[rgba(246,70,93,0.05)]' : ''}
+        ${isRowHighlighted ? 'bg-[#f8f5ff]' : 'hover:bg-[var(--color-surface-soft-hover)]'}
         ${isHighlighted ? 'animate-pulse-highlight' : ''}
       `}
       style={{
@@ -862,7 +867,7 @@ const KRExecutionColumn: React.FC<{
               isDone={item.status === 1}
             />
           ) : (
-            <div className={`truncate pt-[1px] text-[14px] font-medium ${task.isDone ? 'text-gray-400 line-through' : 'text-[#4d5767]'}`}>
+            <div className={`truncate pt-[1px] text-[14px] font-medium ${task.isDone ? 'text-[var(--color-ink-disabled)] line-through' : 'text-[var(--color-ink-tertiary)]'}`}>
               {task.content}
             </div>
           )}
@@ -1006,7 +1011,7 @@ const EditableExecutionTitle: React.FC<{
             setValue(item.title)
           }
         }}
-        className="w-full bg-transparent text-[14px] font-semibold text-[#4d5767] outline-none"
+        className="w-full bg-transparent text-[14px] font-semibold text-[var(--color-ink-tertiary)] outline-none"
         placeholder="输入关键结果"
       />
     )
@@ -1018,7 +1023,7 @@ const EditableExecutionTitle: React.FC<{
         event.stopPropagation()
         onStartEdit()
       }}
-      className={`truncate text-[14px] font-semibold text-[#4d5767] ${isDone ? 'line-through opacity-55' : ''}`}
+      className={`truncate text-[14px] font-semibold text-[var(--color-ink-tertiary)] ${isDone ? 'line-through opacity-55' : ''}`}
     >
       {item.title || '未命名'}
     </div>
@@ -1026,7 +1031,7 @@ const EditableExecutionTitle: React.FC<{
 }
 
 const ExecutionCardEmpty: React.FC<{ text: string; compact?: boolean; minimal?: boolean }> = ({ text, compact = false, minimal = false }) => (
-  <div className={`${minimal ? 'rounded-none border-0 bg-transparent px-0' : 'rounded-[18px] border border-dashed border-[#ebe5dc] bg-[#fbfaf7] px-4'} text-[12px] text-[#a1a9b6] ${compact ? 'py-2' : 'py-4'}`}>
+  <div className={`${minimal ? 'rounded-none border-0 bg-transparent px-0' : 'rounded-[18px] border border-dashed border-[var(--color-border-soft)] bg-[var(--color-surface-canvas)] px-4'} text-[12px] text-[var(--color-ink-disabled)] ${compact ? 'py-2' : 'py-4'}`}>
     {text}
   </div>
 )
@@ -1112,7 +1117,7 @@ const ExecutionContextMenu: React.FC<{
           className={`flex w-full items-center px-4 py-2 text-left text-[14px] transition-colors ${
             action.danger
               ? 'text-[#c84b4b] hover:bg-red-50'
-              : 'text-[#4c5461] hover:bg-black/[0.04]'
+              : 'text-[var(--color-ink-tertiary)] hover:bg-black/[0.04]'
           }`}
         >
           {action.label}
@@ -1190,8 +1195,8 @@ const EditableExecutionRow: React.FC<{
         isHighlighted
           ? 'border-[#d8cdfc] bg-[#f6f1ff]'
           : isSelected
-            ? 'border-[#e1e5eb] bg-[#f4f6f8]'
-            : 'border-transparent bg-transparent hover:border-[#eaedf2] hover:bg-[#f7f8fa]'
+            ? 'border-[var(--color-border-soft)] bg-[var(--color-surface-soft-hover)]'
+            : 'border-transparent bg-transparent hover:border-[var(--color-border-soft)] hover:bg-[var(--color-surface-canvas)]'
       }`}
       style={{
         opacity: isSorting ? 0.92 : 1,
@@ -1228,16 +1233,16 @@ const EditableExecutionRow: React.FC<{
                 setValue(item.title)
               }
             }}
-            className="w-full bg-transparent text-[14px] font-medium text-[#8a919c] outline-none"
+            className="w-full bg-transparent text-[14px] font-medium text-[var(--color-ink-subtle)] outline-none"
             placeholder={item.type === 'KR' ? '输入关键结果' : '输入待办'}
           />
         ) : (
-          <div className={`truncate text-[14px] font-medium ${item.status === 1 ? 'text-gray-400 line-through' : isSelected ? 'text-[#596273]' : 'text-[#8a919c] group-hover/row:text-[#596273]'}`}>
+          <div className={`truncate text-[14px] font-medium ${item.status === 1 ? 'text-[var(--color-ink-disabled)] line-through' : isSelected ? 'text-[var(--color-ink-tertiary)]' : 'text-[var(--color-ink-subtle)] group-hover/row:text-[var(--color-ink-tertiary)]'}`}>
             {item.title || '未命名'}
           </div>
         )}
         {subtitle && !isEditing && (
-          <div className="mt-0.5 text-[12px] text-[#8a919c]">{subtitle}</div>
+          <div className="mt-0.5 text-[12px] text-[var(--color-ink-subtle)]">{subtitle}</div>
         )}
       </div>
 

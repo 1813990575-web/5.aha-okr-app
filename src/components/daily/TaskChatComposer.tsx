@@ -33,7 +33,7 @@ export const TaskChatComposer: React.FC<TaskChatComposerProps> = ({ onSubmit, di
     <div
       className="rounded-[14px] px-4 py-3"
       style={{
-        backgroundColor: 'rgba(132, 141, 154, 0.14)',
+        backgroundColor: 'var(--color-fill-hover)',
       }}
     >
       <div className="flex min-h-[40px] items-center gap-2">
@@ -50,14 +50,16 @@ export const TaskChatComposer: React.FC<TaskChatComposerProps> = ({ onSubmit, di
           }}
           placeholder={isSubmitting ? '发送中...' : '输入今日待办...'}
           disabled={disabled || isSubmitting}
-          className="flex-1 bg-transparent px-1 text-[14px] text-[#4a5360] placeholder:text-[#a4acb7] outline-none"
+          className="flex-1 bg-transparent px-1 text-[14px] text-[var(--color-ink-secondary)] placeholder:text-[var(--color-ink-disabled)] outline-none"
         />
         <button
           type="button"
           onClick={() => void handleSubmit()}
           disabled={!canSend}
           className={`flex h-7 w-7 items-center justify-center rounded-full transition-colors ${
-            canSend ? 'bg-[#8b94a3] text-white hover:bg-[#788292]' : 'bg-[rgba(132,141,154,0.18)] text-[#b1b8c3]'
+            canSend
+              ? 'bg-[var(--color-ink-tertiary)] text-white hover:bg-[var(--color-ink-secondary)]'
+              : 'bg-[var(--color-surface-soft-pressed)] text-[var(--color-ink-disabled)]'
           }`}
           aria-label="发送待办"
         >

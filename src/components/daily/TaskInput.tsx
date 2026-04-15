@@ -42,13 +42,13 @@ export const TaskInput: React.FC<TaskInputProps> = ({ onSubmit, disabled }) => {
     <div
       className={`
         ${DAILY_TASK_ROW_BASE_CLASS} cursor-text
-        bg-[#f5f5f7] hover:bg-[#eff1f4]
+        bg-[var(--color-surface-soft)] hover:bg-[var(--color-surface-soft-hover)]
         ${disabled || isSubmitting ? 'opacity-50 pointer-events-none' : ''}
       `}
       onClick={() => inputRef.current?.focus()}
     >
       {/* 勾选框占位 - 和任务项一样的样式 */}
-      <div className="w-5 h-5 rounded-[4px] border-2 border-[#c8cdd6] bg-transparent flex-shrink-0" />
+      <div className="h-5 w-5 flex-shrink-0 rounded-[4px] border-2 border-[var(--color-border-muted)] bg-transparent" />
 
       {/* 输入框 */}
       <input
@@ -63,8 +63,8 @@ export const TaskInput: React.FC<TaskInputProps> = ({ onSubmit, disabled }) => {
         placeholder={isSubmitting ? '保存中...' : '添加待办事项...'}
         disabled={disabled || isSubmitting}
         className="
-          flex-1 bg-transparent text-[14px] text-[#48515d]
-          placeholder:text-[#a4acb7]
+          flex-1 bg-transparent text-[14px] text-[var(--color-ink-secondary)]
+          placeholder:text-[var(--color-ink-disabled)]
           focus:outline-none
         "
       />

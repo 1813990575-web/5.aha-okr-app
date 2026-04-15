@@ -1,5 +1,5 @@
 {
-  "version": "1.0.12",
+  "version": "1.0.13",
   "downloadUrl": "https://github.com/1813990575-web/5.aha-okr-app/releases/latest",
-  "releaseNotes": "v1.0.12 更新内容：\n- 从底层修正 Intel 机型的窗口渲染策略，恢复硬件加速\n- Intel 机型改为降级窗口效果，移除透明窗口与 vibrancy 带来的高成本合成\n- 继续保持今日待办浮窗的轻量展开链路"
+  "releaseNotes": "v1.0.13 更新内容：\n- 收敛前端设计规范，统一高频界面的黑白灰与文字层级\n- 修复备注浮窗交互边界，输入与选字不再误触下方待办拖动\n- 补全今日浮窗与分栏区的双向联动，支持 KR 与 TODO 的红色关系高亮"
 }

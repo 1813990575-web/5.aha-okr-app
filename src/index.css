@@ -32,6 +32,30 @@
 :root {
   --font-apple: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'PingFang SC', 'Hiragino Sans GB', 'Helvetica Neue', sans-serif;
 
+  /* Core semantic colors */
+  --color-ink-primary: #2e3137;
+  --color-ink-strong: #272729;
+  --color-ink-secondary: #313744;
+  --color-ink-tertiary: #5f6673;
+  --color-ink-muted: #7b7f89;
+  --color-ink-subtle: #8a91a0;
+  --color-ink-disabled: #9aa1ad;
+
+  --color-white: #ffffff;
+  --color-surface-canvas: #fafbfc;
+  --color-surface-card: #ffffff;
+  --color-surface-soft: #f5f5f7;
+  --color-surface-soft-hover: #f3f5f7;
+  --color-surface-soft-pressed: #eceef2;
+  --color-fill-hover: rgba(132, 141, 154, 0.14);
+
+  --color-border-soft: #e5e5e5;
+  --color-border-muted: #c8cbd2;
+
+  --color-danger: #f6465d;
+  --color-danger-muted: #c26a64;
+  --color-warn: #8b7663;
+
   /* Typography tokens (Apple-style baseline) */
   --type-section-size: 40px;
   --type-section-weight: 600;
@@ -60,6 +84,10 @@
   --type-micro-size: 12px;
   --type-micro-weight: 400;
   --type-micro-line-height: 1.33;
+
+  --type-label-size: 12px;
+  --type-label-weight: 600;
+  --type-label-line-height: 1.33;
 }
 
 @layer base {
@@ -175,6 +203,12 @@
     font-size: var(--type-link-size);
     font-weight: var(--type-link-weight);
     line-height: var(--type-link-line-height);
+  }
+
+  .typo-label {
+    font-size: var(--type-label-size);
+    font-weight: var(--type-label-weight);
+    line-height: var(--type-label-line-height);
   }
 
   .typo-micro {

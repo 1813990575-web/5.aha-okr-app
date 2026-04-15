@@ -16,6 +16,7 @@ interface TodoThreadPopoverProps {
   entityId: string
   entityKind: ThreadEntityKind
   title: string
+  onOpenChange?: (open: boolean) => void
 }
 
 function formatTime(timestamp: number) {
@@ -41,6 +42,7 @@ export const TodoThreadPopover: React.FC<TodoThreadPopoverProps> = ({
   entityId,
   entityKind,
   title,
+  onOpenChange,
 }) => {
   const popoverHeight = 456
   const headerHeight = 68
@@ -146,6 +148,10 @@ export const TodoThreadPopover: React.FC<TodoThreadPopoverProps> = ({
     return () => clearCloseTimer()
   }, [clearCloseTimer])
 
+  useEffect(() => {
+    onOpenChange?.(open)
+  }, [onOpenChange, open])
+
   const openPopover = useCallback(() => {
     clearCloseTimer()
     setOpen(true)
@@ -240,14 +246,14 @@ export const TodoThreadPopover: React.FC<TodoThreadPopoverProps> = ({
             openPopover()
           }
         }}
-        className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border transition-all duration-200 ${
+        className={`flex h-5 w-5 flex-shrink-0 items-center justify-center transition-colors duration-200 ${
           hasMessages
-            ? 'border-[#d9dce2] bg-white text-[#5c6574] shadow-[0_6px_16px_rgba(15,23,42,0.08)]'
-            : 'border-transparent bg-transparent text-[#a2a9b5] hover:border-[#dfe3ea] hover:bg-white/92 hover:text-[#5f6673]'
+            ? 'text-[var(--color-ink-strong)]'
+            : 'text-[var(--color-ink-disabled)] hover:text-[var(--color-ink-tertiary)]'
         }`}
         aria-label="打开待办消息浮窗"
       >
-        <MessageCircleMore className="h-[15px] w-[15px]" strokeWidth={1.9} />
+        <MessageCircleMore className="h-[13px] w-[13px]" strokeWidth={1.95} />
       </button>
 
       {open && typeof document !== 'undefined'
@@ -256,6 +262,13 @@ export const TodoThreadPopover: React.FC<TodoThreadPopoverProps> = ({
               className="fixed z-[320] w-[320px]"
               style={{ top: position.top, left: position.left }}
               onClick={(event) => event.stopPropagation()}
+              onMouseDown={(event) => event.stopPropagation()}
+              onPointerDown={(event) => event.stopPropagation()}
+              onMouseMove={(event) => event.stopPropagation()}
+              onPointerMove={(event) => event.stopPropagation()}
+              onDoubleClick={(event) => event.stopPropagation()}
+              onContextMenu={(event) => event.stopPropagation()}
+              onWheel={(event) => event.stopPropagation()}
             >
               <section
                 className={`relative overflow-hidden border shadow-[0_28px_60px_rgba(15,23,42,0.16)] ${
@@ -270,7 +283,7 @@ export const TodoThreadPopover: React.FC<TodoThreadPopoverProps> = ({
                   onMouseDown={handleDragStart}
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <div className={`truncate text-[20px] font-semibold tracking-[-0.03em] ${pinned ? 'text-[#5f4916]' : 'text-[#232a36]'}`}>{title}</div>
+                    <div className={`truncate text-[20px] font-semibold tracking-[-0.03em] ${pinned ? 'text-[#5f4916]' : 'text-[var(--color-ink-primary)]'}`}>{title}</div>
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
@@ -282,7 +295,7 @@ export const TodoThreadPopover: React.FC<TodoThreadPopoverProps> = ({
                         className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border transition-colors ${
                           pinned
                             ? 'border-[#bb5b45] bg-[#ffe4c8] text-[#bb4f37]'
-                            : 'border-[#e5e7eb] bg-white text-[#b3bac6] hover:text-[#5f6673]'
+                            : 'border-[var(--color-border-soft)] bg-white text-[var(--color-ink-disabled)] hover:text-[var(--color-ink-tertiary)]'
                         }`}
                         aria-label={pinned ? '取消固定浮窗' : '固定浮窗'}
                       >
@@ -298,7 +311,7 @@ export const TodoThreadPopover: React.FC<TodoThreadPopoverProps> = ({
                         className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border transition-colors ${
                           pinned
                             ? 'border-[#cfb86f] bg-[#f7e6ab] text-[#8c7132] hover:text-[#6d551f]'
-                            : 'border-[#e5e7eb] bg-white text-[#b3bac6] hover:text-[#5f6673]'
+                            : 'border-[var(--color-border-soft)] bg-white text-[var(--color-ink-disabled)] hover:text-[var(--color-ink-tertiary)]'
                         }`}
                         aria-label="关闭浮窗"
                       >
@@ -316,7 +329,7 @@ export const TodoThreadPopover: React.FC<TodoThreadPopoverProps> = ({
                     {messages.length === 0 ? (
                       <div
                         className={`flex h-full items-center justify-center text-[13px] leading-6 ${
-                          pinned ? 'text-[#9b8044]' : 'text-[#98a1af]'
+                          pinned ? 'text-[#9b8044]' : 'text-[var(--color-ink-disabled)]'
                         }`}
                       >
                         <div className="flex items-center gap-2">
@@ -336,7 +349,7 @@ export const TodoThreadPopover: React.FC<TodoThreadPopoverProps> = ({
                               <div className={`text-[14px] leading-6 ${pinned ? 'text-[#5d491c]' : 'text-[#f8fafc]'}`}>{message.text}</div>
                             </article>
                             <div className="mt-1 flex items-center gap-2 px-1">
-                              <div className={`text-[11px] font-medium ${pinned ? 'text-[#a78946]' : 'text-[#8b95a5]'}`}>
+                              <div className={`text-[11px] font-medium ${pinned ? 'text-[#a78946]' : 'text-[var(--color-ink-subtle)]'}`}>
                                 {formatTime(message.createdAt)}
                               </div>
                               <div className="ml-0.5 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
@@ -344,7 +357,7 @@ export const TodoThreadPopover: React.FC<TodoThreadPopoverProps> = ({
                                   type="button"
                                   onClick={() => handleDeleteMessage(message.id)}
                                   className={`flex h-4 w-4 items-center justify-center rounded transition-colors ${
-                                    pinned ? 'text-[#9b8044] hover:bg-[#efd88f] hover:text-[#6f5319]' : 'text-[#8b95a5] hover:bg-[#e8edf3] hover:text-[#5b6472]'
+                                    pinned ? 'text-[#9b8044] hover:bg-[#efd88f] hover:text-[#6f5319]' : 'text-[var(--color-ink-subtle)] hover:bg-[var(--color-surface-soft-pressed)] hover:text-[var(--color-ink-tertiary)]'
                                   }`}
                                   aria-label="删除消息"
                                 >
@@ -354,7 +367,7 @@ export const TodoThreadPopover: React.FC<TodoThreadPopoverProps> = ({
                                   type="button"
                                   onClick={() => handleEditMessage(message)}
                                   className={`flex h-4 w-4 items-center justify-center rounded transition-colors ${
-                                    pinned ? 'text-[#9b8044] hover:bg-[#efd88f] hover:text-[#6f5319]' : 'text-[#8b95a5] hover:bg-[#e8edf3] hover:text-[#5b6472]'
+                                    pinned ? 'text-[#9b8044] hover:bg-[#efd88f] hover:text-[#6f5319]' : 'text-[var(--color-ink-subtle)] hover:bg-[var(--color-surface-soft-pressed)] hover:text-[var(--color-ink-tertiary)]'
                                   }`}
                                   aria-label="编辑消息"
                                 >
@@ -380,7 +393,7 @@ export const TodoThreadPopover: React.FC<TodoThreadPopoverProps> = ({
                           className={`inline-flex h-8 items-center gap-1 rounded-full border px-3.5 text-[11px] font-medium transition-colors ${
                             pinned
                               ? 'border-[#cfb567] bg-[#f7e6a5] text-[#6f5925] shadow-[0_1px_0_rgba(255,255,255,0.35)] hover:bg-[#f4de90]'
-                              : 'border-[#e7e1d8] bg-white text-[#5d6471] shadow-[0_1px_3px_rgba(15,23,42,0.06)] hover:bg-[#f8f7f5] hover:text-[#2f3744]'
+                              : 'border-[var(--color-border-soft)] bg-white text-[var(--color-ink-tertiary)] shadow-[0_1px_3px_rgba(15,23,42,0.06)] hover:bg-[var(--color-surface-canvas)] hover:text-[var(--color-ink-primary)]'
                           }`}
                           aria-label={composerExpanded ? '收起输入区' : '展开输入区'}
                         >
@@ -393,7 +406,7 @@ export const TodoThreadPopover: React.FC<TodoThreadPopoverProps> = ({
                         className={`relative mt-auto border transition-[height] duration-200 ease-out ${
                           pinned
                             ? 'rounded-[12px] border-[#cfb567] bg-[#f9eab4] shadow-[0_8px_18px_rgba(135,104,25,0.12)]'
-                            : 'rounded-[18px] border-[#ece7df] bg-white shadow-[0_8px_20px_rgba(15,23,42,0.04)]'
+                            : 'rounded-[18px] border-[var(--color-border-soft)] bg-white shadow-[0_8px_20px_rgba(15,23,42,0.04)]'
                         } ${
                           composerExpanded ? 'px-3 pb-3 pt-3' : 'px-3 py-2.5'
                         }`}
@@ -406,7 +419,7 @@ export const TodoThreadPopover: React.FC<TodoThreadPopoverProps> = ({
                           onKeyDown={handleComposerKeyDown}
                           placeholder="输入消息或笔记..."
                           className={`w-full resize-none bg-transparent pl-1 pr-12 text-[14px] outline-none ${
-                            pinned ? 'text-[#5d491c] placeholder:text-[#b79c59]' : 'text-[#4a5360] placeholder:text-[#a4acb7]'
+                            pinned ? 'text-[#5d491c] placeholder:text-[#b79c59]' : 'text-[var(--color-ink-secondary)] placeholder:text-[var(--color-ink-disabled)]'
                           } ${
                             composerExpanded ? 'leading-7' : 'leading-6'
                           }`}
@@ -427,8 +440,8 @@ export const TodoThreadPopover: React.FC<TodoThreadPopoverProps> = ({
                                   ? 'bg-[#6f5319] text-[#fff8dd] hover:bg-[#5c4311]'
                                   : 'bg-[#ead89a] text-[#bea55a]'
                                 : canSend
-                                  ? 'bg-[#272729] text-white hover:bg-[#1c1c1e]'
-                                  : 'bg-[#eceef2] text-[#b9bfc9]'
+                                  ? 'bg-[var(--color-ink-strong)] text-white hover:bg-[var(--color-ink-primary)]'
+                                  : 'bg-[var(--color-surface-soft-pressed)] text-[var(--color-ink-disabled)]'
                             }`}
                             aria-label="发送消息"
                           >

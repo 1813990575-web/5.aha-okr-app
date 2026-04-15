@@ -174,31 +174,31 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
   return (
     <div>
       {/* 上边栏：日期标题居中 + 回到今天 - 可拖拽区域 */}
-      <div className={`${enableWindowDragRegion ? 'app-drag-region' : 'app-no-drag'} relative flex items-center justify-center px-4 py-3 border-b ${isGlassMode ? 'border-black/[0.08] bg-white/52 backdrop-blur-[12px]' : 'border-[#eceef2] bg-[#fafbfc]'}`}>
+      <div className={`${enableWindowDragRegion ? 'app-drag-region' : 'app-no-drag'} relative flex items-center justify-center border-b px-4 py-3 ${isGlassMode ? 'border-black/[0.08] bg-white/52 backdrop-blur-[12px]' : 'border-[var(--color-surface-soft-pressed)] bg-[var(--color-surface-canvas)]'}`}>
         {/* 中间：日期 + 日历按钮 */}
         <div className="flex items-center gap-2">
-          <span className="typo-body-emphasis text-gray-800">
+          <span className="typo-body-emphasis text-[var(--color-ink-primary)]">
             {formatDetailedDate(selectedDate)}
           </span>
           {/* 日历按钮 */}
           <button
             onClick={onOpenDatePicker}
-            className="app-no-drag p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+            className="app-no-drag rounded-lg p-1.5 transition-colors hover:bg-[var(--color-surface-soft)]"
           >
-            <Calendar className="w-4 h-4 text-gray-500" />
+            <Calendar className="h-4 w-4 text-[var(--color-ink-tertiary)]" />
           </button>
         </div>
 
       </div>
 
       {/* 周历导航 + 进度条 - 共用一个白色底色，增加下方阴影与TODO区分 */}
-      <div className={`border-b shadow-[0_10px_24px_rgba(17,24,39,0.04)] ${isGlassMode ? 'border-black/[0.08] bg-white/46 backdrop-blur-[12px]' : 'border-[#eceef2] bg-[#fafbfc]'}`}>
+      <div className={`border-b shadow-[0_10px_24px_rgba(17,24,39,0.04)] ${isGlassMode ? 'border-black/[0.08] bg-white/46 backdrop-blur-[12px]' : 'border-[var(--color-surface-soft-pressed)] bg-[var(--color-surface-canvas)]'}`}>
         {/* 星期列表 */}
         <div className="flex items-center justify-between px-2 py-3">
           {/* 左箭头 */}
           <button
             onClick={handlePrevWeek}
-            className="app-no-drag w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors flex-shrink-0"
+            className="app-no-drag flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-[var(--color-ink-disabled)] transition-colors hover:bg-[var(--color-surface-soft)] hover:text-[var(--color-ink-tertiary)]"
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
@@ -211,15 +211,15 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
                 onClick={() => handleSelectDate(item.date)}
                 className={`app-no-drag flex flex-col items-center justify-center gap-1 py-2 w-[52px] h-[60px] rounded-xl transition-colors ${
                   item.isSelected
-                    ? 'bg-[#eef1f5]'
-                    : 'hover:bg-[#f5f7fa]'
+                    ? 'bg-[var(--color-surface-soft-pressed)]'
+                    : 'hover:bg-[var(--color-surface-soft)]'
                 }`}
               >
                 {/* 星期 */}
-                <span className={`text-[12px] font-semibold ${
+                <span className={`typo-label ${
                   item.isSelected || item.isToday
-                    ? 'text-gray-800'
-                    : 'text-gray-400'
+                    ? 'text-[var(--color-ink-primary)]'
+                    : 'text-[var(--color-ink-disabled)]'
                 }`}>
                   {item.weekday}
                 </span>
@@ -228,15 +228,15 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
                   item.isToday
                     ? 'text-red-500'
                     : item.isSelected
-                      ? 'text-gray-800'
-                      : 'text-gray-600'
+                      ? 'text-[var(--color-ink-primary)]'
+                      : 'text-[var(--color-ink-tertiary)]'
                 }`}>
                   {item.day}
                 </span>
                 {/* 内容指示点：恒定占位，通过透明度控制显隐 */}
                 <span
                   className={`w-1 h-1 rounded-full flex-shrink-0 mt-0.5 transition-opacity duration-200 ${
-                    item.hasContent ? 'bg-gray-400 opacity-100' : 'bg-transparent opacity-0'
+                    item.hasContent ? 'bg-[var(--color-ink-disabled)] opacity-100' : 'bg-transparent opacity-0'
                   }`}
                 />
               </button>
@@ -246,7 +246,7 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
           {/* 右箭头 */}
           <button
             onClick={handleNextWeek}
-            className="app-no-drag w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors flex-shrink-0"
+            className="app-no-drag flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-[var(--color-ink-disabled)] transition-colors hover:bg-[var(--color-surface-soft)] hover:text-[var(--color-ink-tertiary)]"
           >
             <ChevronRight className="w-5 h-5" />
           </button>
@@ -255,7 +255,7 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
         {/* 时间统计进度条 - 借鉴玻璃珠滑轨的凹槽质感 */}
         <div className="flex items-center gap-2 px-4 py-1.5 pb-3">
           {/* 左侧：已度过百分比 - 灰色字 */}
-          <span className="text-[14px] font-bold w-[44px] flex-shrink-0" style={{ color: '#94A3B8' }}>
+          <span className="w-[44px] flex-shrink-0 text-[14px] font-bold text-[var(--color-ink-subtle)]">
             {dayProgress.progress}%
           </span>
 
@@ -264,7 +264,7 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
             className="relative flex-1 overflow-hidden rounded-full"
             style={{
               height: '7px',
-              background: '#EEF2F6',
+              background: 'var(--color-surface-soft-pressed)',
               boxShadow: `
                 inset 0 1px 2px rgba(0, 0, 0, 0.12),
                 inset 0 1px 1px rgba(0, 0, 0, 0.06),
@@ -293,7 +293,7 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
           </div>
 
           {/* 右侧：剩余时间 - 加深字体颜色 */}
-          <span className="text-[14px] font-bold w-[52px] text-right flex-shrink-0" style={{ color: '#475569' }}>
+          <span className="w-[52px] flex-shrink-0 text-right text-[14px] font-bold text-[var(--color-ink-tertiary)]">
             {dayProgress.remainingHours}h
           </span>
         </div>

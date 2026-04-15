@@ -173,10 +173,10 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           ${DAILY_TASK_ROW_BASE_CLASS} cursor-pointer
           ${task.isDone ? 'opacity-50' : ''}
           ${isRelationHighlighted ? 'objective-board-linked-pulse border border-dashed border-[rgba(246,70,93,0.34)] bg-[rgba(246,70,93,0.05)]' : ''}
-          ${!isRelationHighlighted && isFocusActive ? 'border-[#272729] bg-[#272729]' : ''}
+          ${!isRelationHighlighted && isFocusActive ? 'border-[var(--color-ink-strong)] bg-[var(--color-ink-strong)]' : ''}
           ${!isRelationHighlighted && isHighlighted ? 'bg-blue-50/80 animate-pulse-highlight border-blue-100' : ''}
-          ${!isRelationHighlighted && !isFocusActive && isSelected ? 'bg-[#f3f5f7] border-[#e4e7eb]' : ''}
-          ${!isRelationHighlighted && !isFocusActive && !isSelected ? 'hover:bg-[#f7f8fa]' : ''}
+          ${!isRelationHighlighted && !isFocusActive && isSelected ? 'border-[var(--color-border-soft)] bg-[var(--color-surface-soft-hover)]' : ''}
+          ${!isRelationHighlighted && !isFocusActive && !isSelected ? 'hover:bg-[var(--color-surface-canvas)]' : ''}
         `}
         style={{
           boxShadow: isSorting ? 'inset 0 0 0 1px rgba(125,108,242,0.1)' : undefined,
@@ -202,13 +202,13 @@ export const TaskItem: React.FC<TaskItemProps> = ({
             ${isOkrDerived
               ? // OKR 派生项：正圆形，边框颜色继承 KR 的 color
                 `w-5 h-5 rounded-full border-2 ${task.isDone
-                  ? 'bg-gray-800 border-gray-800'
+                  ? 'border-[var(--color-ink-strong)] bg-[var(--color-ink-strong)]'
                   : 'bg-white hover:opacity-80'
                 }`
               : // 原生待办：圆角矩形
                 `w-5 h-5 rounded-[4px] border-2 ${task.isDone
-                  ? 'bg-gray-800 border-gray-800'
-                  : 'border-gray-300 hover:border-gray-400 bg-white'
+                  ? 'border-[var(--color-ink-strong)] bg-[var(--color-ink-strong)]'
+                  : 'border-[var(--color-border-muted)] bg-white hover:border-[var(--color-ink-subtle)]'
                 }`
             }
           `}
@@ -228,7 +228,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
               onKeyDown={handleKeyDown}
               onBlur={handleSave}
               onClick={(e) => e.stopPropagation()}
-              className="w-full bg-transparent border-none outline-none text-[14px] text-gray-700 p-0"
+              className="w-full border-none bg-transparent p-0 text-[14px] text-[var(--color-ink-secondary)] outline-none"
               autoFocus
             />
           ) : (
@@ -236,10 +236,10 @@ export const TaskItem: React.FC<TaskItemProps> = ({
               className={`
                 text-[14px] font-medium transition-all duration-150 truncate whitespace-nowrap overflow-hidden
                 ${task.isDone
-                  ? 'text-gray-400 line-through'
+                  ? 'text-[var(--color-ink-disabled)] line-through'
                   : isFocusActive
                     ? 'text-white'
-                    : 'text-[#48515d]'
+                    : 'text-[var(--color-ink-secondary)]'
                 }
               `}
               title={task.content}
@@ -258,8 +258,8 @@ export const TaskItem: React.FC<TaskItemProps> = ({
             }}
             className={`ml-2 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold transition-colors ${
               isFocusActive
-                ? 'bg-white text-[#272729] hover:bg-white/90'
-                : 'bg-white text-[#272729] hover:bg-[#f7f7f8]'
+                ? 'bg-white text-[var(--color-ink-strong)] hover:bg-white/90'
+                : 'bg-white text-[var(--color-ink-strong)] hover:bg-[var(--color-surface-canvas)]'
             }`}
             aria-label="打开专注面板"
           >
@@ -267,7 +267,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
               className={`h-2 w-2 flex-shrink-0 rounded-full ${
                 miniTimerState === 'running'
                   ? 'animate-pulse bg-[#F6465D] shadow-[0_0_0_3px_rgba(246,70,93,0.12)]'
-                  : 'bg-[#c9ced6]'
+                  : 'bg-[var(--color-border-muted)]'
               }`}
             />
             <FocusDurationText session={focusSession} />
@@ -279,7 +279,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
       {/* 右键菜单 */}
       {showContextMenu && typeof document !== 'undefined' && createPortal((
         <div
-          className="fixed z-[280] bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 min-w-[140px]"
+          className="fixed z-[280] min-w-[140px] rounded-lg border border-[var(--color-border-soft)] bg-white py-1 shadow-lg"
           style={{ left: contextMenuPos.x, top: contextMenuPos.y }}
         >
           <button

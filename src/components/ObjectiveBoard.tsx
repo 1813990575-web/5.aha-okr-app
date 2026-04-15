@@ -39,15 +39,15 @@ interface VisionMessage {
 }
 
 const KR_CORE_BASE_PALETTE = {
-  pureWhite: '#ffffff',
-  lightGray: '#f5f5f7',
-  darkSurface: '#272729',
+  pureWhite: 'var(--color-white)',
+  lightGray: 'var(--color-surface-soft)',
+  darkSurface: 'var(--color-ink-strong)',
   nearWhite: '#f6f6f6',
   border: '#e2ddd7',
-  borderSoft: '#e5e5e5',
+  borderSoft: 'var(--color-border-soft)',
   badgeBg: '#ebe6e1',
   badgeText: '#6b625b',
-  bodySoft: '#f5f5f7',
+  bodySoft: 'var(--color-surface-soft)',
   bodyWarm: '#f8f7f5',
 } as const
 
@@ -188,7 +188,7 @@ function formatObjectiveDeadline(deadlineAt?: string | null): { countdown: strin
     .format(target)
     .replace(/\//g, '.')
 
-  const tone = days < 0 ? 'text-[#c26a64]' : days <= 3 ? 'text-[#8b7663]' : 'text-[#2f3742]'
+  const tone = days < 0 ? 'text-[var(--color-danger-muted)]' : days <= 3 ? 'text-[var(--color-warn)]' : 'text-[#2f3742]'
 
   return { countdown, date: `截止 ${date}`, tone }
 }
@@ -220,10 +220,12 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
   const [boardMenuPosition, setBoardMenuPosition] = useState<{ x: number; y: number } | null>(null)
   const [activeKrSortId, setActiveKrSortId] = useState<string | null>(null)
   const [activeTodoSortId, setActiveTodoSortId] = useState<string | null>(null)
+  const [highlightedKrId, setHighlightedKrId] = useState<string | null>(null)
   const [highlightedTodoId, setHighlightedTodoId] = useState<string | null>(null)
   const [highlightedFloatingTaskId, setHighlightedFloatingTaskId] = useState<string | null>(null)
   const [isFloatingPanelOpen, setIsFloatingPanelOpen] = useState(false)
   const [isFloatingPanelPrepared, setIsFloatingPanelPrepared] = useState(false)
+  const [isFloatingSafeAreaActive, setIsFloatingSafeAreaActive] = useState(false)
   const [isVisionDialogOpen, setIsVisionDialogOpen] = useState(false)
   const [isDeadlineEditorOpen, setIsDeadlineEditorOpen] = useState(false)
   const [deadlineDraft, setDeadlineDraft] = useState('')
@@ -233,8 +235,9 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
   const floatingTaskHighlightTimerRef = useRef<number | null>(null)
   const boardScrollRef = useRef<HTMLDivElement | null>(null)
   const deadlineEditorRef = useRef<HTMLDivElement | null>(null)
+  const krColumnRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const todoItemRefs = useRef<Map<string, HTMLDivElement>>(new Map())
-  const pendingTodoFocusRef = useRef<string | null>(null)
+  const pendingBoardFocusRef = useRef<{ type: 'KR' | 'TODO'; id: string } | null>(null)
 
   const loadItems = useCallback(async ({ showLoading = true }: { showLoading?: boolean } = {}) => {
     try {
@@ -378,7 +381,7 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
     setEditingTarget(null)
     if (!nextTitle) {
       const currentItem = items.find((item) => item.id === id)
-      if (currentItem?.type === 'TODO') {
+      if (currentItem?.type === 'TODO' || currentItem?.type === 'KR') {
         await window.electronAPI.database.deleteItem(id)
         await refreshAfterMutation()
       }
@@ -394,13 +397,13 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
       id: newId,
       type: 'KR',
       parent_id: objective.id,
-      title: '新关键结果',
+      title: '',
       content: '',
       status: 0,
       total_focus_time: 0,
     })
     await refreshAfterMutation()
-    setEditingTarget({ id: newId, kind: 'kr', value: '新关键结果' })
+    setEditingTarget({ id: newId, kind: 'kr', value: '' })
   }, [objective.id, refreshAfterMutation])
 
   const createTodo = useCallback(async (krId: string) => {
@@ -504,6 +507,41 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
     }
   }, [])
 
+  const scrollBoardElementIntoView = useCallback((element: HTMLElement) => {
+    const scrollContainer = boardScrollRef.current
+    if (!scrollContainer) return
+
+    const containerRect = scrollContainer.getBoundingClientRect()
+    const elementRect = element.getBoundingClientRect()
+    const safeVisibleRight = containerRect.right - FLOATING_PANEL_SAFE_RIGHT_PADDING - 40
+    const safeVisibleLeft = containerRect.left + 36
+
+    const currentScrollLeft = scrollContainer.scrollLeft
+    let nextScrollLeft = currentScrollLeft
+
+    if (elementRect.right > safeVisibleRight) {
+      nextScrollLeft += elementRect.right - safeVisibleRight
+    }
+
+    if (elementRect.left < safeVisibleLeft) {
+      nextScrollLeft -= safeVisibleLeft - elementRect.left
+    }
+
+    const maxScrollLeft = scrollContainer.scrollWidth - scrollContainer.clientWidth
+    const clampedScrollLeft = Math.max(0, Math.min(nextScrollLeft, Math.max(0, maxScrollLeft)))
+
+    scrollContainer.scrollTo({
+      left: clampedScrollLeft,
+      behavior: 'smooth',
+    })
+
+    element.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center',
+      inline: 'nearest',
+    })
+  }, [])
+
   const highlightFloatingTask = useCallback((taskId: string) => {
     setHighlightedFloatingTaskId(taskId)
     if (floatingTaskHighlightTimerRef.current) {
@@ -522,52 +560,41 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
     })
   }, [])
 
+  const focusKrInBoard = useCallback((krId: string) => {
+    setHighlightedKrId(krId)
+    setHighlightedTodoId(null)
+    if (todoHighlightTimerRef.current) {
+      window.clearTimeout(todoHighlightTimerRef.current)
+    }
+    todoHighlightTimerRef.current = window.setTimeout(() => {
+      setHighlightedKrId((current) => (current === krId ? null : current))
+      todoHighlightTimerRef.current = null
+    }, 1350)
+
+    window.requestAnimationFrame(() => {
+      const element = krColumnRefs.current.get(krId)
+      if (!element) return
+      scrollBoardElementIntoView(element)
+    })
+  }, [scrollBoardElementIntoView])
+
   const focusTodoInBoard = useCallback((todoId: string) => {
+    setHighlightedKrId(null)
     setHighlightedTodoId(todoId)
     if (todoHighlightTimerRef.current) {
       window.clearTimeout(todoHighlightTimerRef.current)
     }
     todoHighlightTimerRef.current = window.setTimeout(() => {
-    setHighlightedTodoId((current) => (current === todoId ? null : current))
+      setHighlightedTodoId((current) => (current === todoId ? null : current))
       todoHighlightTimerRef.current = null
     }, 1350)
 
     window.requestAnimationFrame(() => {
-      const scrollContainer = boardScrollRef.current
       const element = todoItemRefs.current.get(todoId)
-      if (!element || !scrollContainer) return
-
-      const containerRect = scrollContainer.getBoundingClientRect()
-      const elementRect = element.getBoundingClientRect()
-      const safeVisibleRight = containerRect.right - FLOATING_PANEL_SAFE_RIGHT_PADDING - 40
-      const safeVisibleLeft = containerRect.left + 36
-
-      const currentScrollLeft = scrollContainer.scrollLeft
-      let nextScrollLeft = currentScrollLeft
-
-      if (elementRect.right > safeVisibleRight) {
-        nextScrollLeft += elementRect.right - safeVisibleRight
-      }
-
-      if (elementRect.left < safeVisibleLeft) {
-        nextScrollLeft -= safeVisibleLeft - elementRect.left
-      }
-
-      const maxScrollLeft = scrollContainer.scrollWidth - scrollContainer.clientWidth
-      const clampedScrollLeft = Math.max(0, Math.min(nextScrollLeft, Math.max(0, maxScrollLeft)))
-
-      scrollContainer.scrollTo({
-        left: clampedScrollLeft,
-        behavior: 'smooth',
-      })
-
-      element.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center',
-        inline: 'nearest',
-      })
+      if (!element) return
+      scrollBoardElementIntoView(element)
     })
-  }, [])
+  }, [scrollBoardElementIntoView])
 
   const handleBoardTodoSelect = useCallback((todo: Item) => {
     const linkedTask = tasks.find((task) => (task.sourceItemId ?? task.linkedGoalId) === todo.id)
@@ -575,17 +602,34 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
     highlightFloatingTask(linkedTask.id)
   }, [highlightFloatingTask, tasks])
 
+  const handleBoardKrSelect = useCallback((kr: Item) => {
+    const linkedTask = tasks.find((task) => (task.sourceItemId ?? task.linkedGoalId) === kr.id)
+    if (!linkedTask) return
+    highlightFloatingTask(linkedTask.id)
+  }, [highlightFloatingTask, tasks])
+
   const handleFloatingPanelSetActiveObjective = useCallback((itemId: string) => {
-    const targetTodo = items.find((item) => item.id === itemId && item.type === 'TODO') || null
-    if (!targetTodo) return
+    const targetItem = items.find((item) => item.id === itemId) || null
+    if (!targetItem) return
 
-    const targetKr = items.find((item) => item.id === targetTodo.parent_id && item.type === 'KR') || null
-    if (!targetKr) return
+    let targetObjective: Item | null = null
+    let pendingFocus: { type: 'KR' | 'TODO'; id: string } | null = null
 
-    const targetObjective = items.find((item) => item.id === targetKr.parent_id && item.type === 'O') || null
+    if (targetItem.type === 'TODO') {
+      const targetKr = items.find((item) => item.id === targetItem.parent_id && item.type === 'KR') || null
+      if (!targetKr) return
+      targetObjective = items.find((item) => item.id === targetKr.parent_id && item.type === 'O') || null
+      pendingFocus = { type: 'TODO', id: targetItem.id }
+    } else if (targetItem.type === 'KR') {
+      targetObjective = items.find((item) => item.id === targetItem.parent_id && item.type === 'O') || null
+      pendingFocus = { type: 'KR', id: targetItem.id }
+    } else if (targetItem.type === 'O') {
+      targetObjective = targetItem
+    }
+
     if (!targetObjective) return
 
-    pendingTodoFocusRef.current = targetTodo.id
+    pendingBoardFocusRef.current = pendingFocus
 
     if (targetObjective.id !== objective.id) {
       onSwitchObjectiveBoard?.({
@@ -596,22 +640,35 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
       return
     }
 
-    focusTodoInBoard(targetTodo.id)
-  }, [focusTodoInBoard, items, objective.id, onSwitchObjectiveBoard])
+    if (pendingFocus?.type === 'TODO') {
+      focusTodoInBoard(pendingFocus.id)
+    } else if (pendingFocus?.type === 'KR') {
+      focusKrInBoard(pendingFocus.id)
+    }
+  }, [focusKrInBoard, focusTodoInBoard, items, objective.id, onSwitchObjectiveBoard])
 
   useEffect(() => {
-    const pendingTodoId = pendingTodoFocusRef.current
-    if (!pendingTodoId) return
+    const pendingFocus = pendingBoardFocusRef.current
+    if (!pendingFocus) return
 
-    const targetTodo = items.find((item) => item.id === pendingTodoId && item.type === 'TODO') || null
-    if (!targetTodo) return
+    if (pendingFocus.type === 'TODO') {
+      const targetTodo = items.find((item) => item.id === pendingFocus.id && item.type === 'TODO') || null
+      if (!targetTodo) return
 
-    const targetKr = items.find((item) => item.id === targetTodo.parent_id && item.type === 'KR') || null
+      const targetKr = items.find((item) => item.id === targetTodo.parent_id && item.type === 'KR') || null
+      if (!targetKr || targetKr.parent_id !== objective.id) return
+
+      pendingBoardFocusRef.current = null
+      focusTodoInBoard(targetTodo.id)
+      return
+    }
+
+    const targetKr = items.find((item) => item.id === pendingFocus.id && item.type === 'KR') || null
     if (!targetKr || targetKr.parent_id !== objective.id) return
 
-    pendingTodoFocusRef.current = null
-    focusTodoInBoard(targetTodo.id)
-  }, [focusTodoInBoard, items, objective.id])
+    pendingBoardFocusRef.current = null
+    focusKrInBoard(targetKr.id)
+  }, [focusKrInBoard, focusTodoInBoard, items, objective.id])
 
   useEffect(() => {
     if (isFloatingPanelPrepared) return
@@ -635,11 +692,21 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
 
   const closeFloatingPanel = useCallback(() => {
     setIsFloatingPanelOpen(false)
+    setIsFloatingSafeAreaActive(false)
   }, [])
 
-  // Intel 机型上，浮窗展开时推动主分栏重排会明显放大卡顿感。
-  // 分栏保持稳定布局，联动滚动时再单独按安全区域计算可视范围。
-  const boardRightPadding = BOARD_BASE_RIGHT_PADDING
+  useEffect(() => {
+    if (!isFloatingPanelOpen) return
+
+    // 让浮窗先完成进场，再补安全区，避免和浮窗显隐同时触发布局动画。
+    const timer = window.setTimeout(() => {
+      setIsFloatingSafeAreaActive(true)
+    }, 90)
+
+    return () => window.clearTimeout(timer)
+  }, [isFloatingPanelOpen])
+
+  const boardRightPadding = isFloatingSafeAreaActive ? FLOATING_PANEL_SAFE_RIGHT_PADDING : BOARD_BASE_RIGHT_PADDING
 
   const openVisionDialog = useCallback(() => {
     setIsVisionDialogOpen(true)
@@ -713,7 +780,7 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
   }
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden bg-white text-[#2e3137]">
+    <div className="relative flex h-full flex-col overflow-hidden bg-white text-[var(--color-ink-primary)]">
       <style>{`
         @keyframes objective-board-linked-pulse {
           0%, 100% {
@@ -727,6 +794,11 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
         }
         .objective-board-linked-pulse {
           animation: objective-board-linked-pulse 420ms ease-in-out 2;
+          will-change: background-color, border-color;
+        }
+        .objective-board-linked-overlay-pulse {
+          animation: objective-board-linked-pulse 420ms ease-in-out 2;
+          will-change: background-color;
         }
         @keyframes objective-board-toast-drop {
           0% {
@@ -779,22 +851,22 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
                 onClick={openDeadlineEditor}
                 className="flex w-full items-start gap-2 rounded-[10px] px-1 py-0.5 text-left text-[14px] leading-[1.55] text-[#6d7482] transition-colors hover:bg-black/[0.03] hover:text-[#575f6f]"
               >
-                <CalendarDays className="mt-[2px] h-4 w-4 flex-shrink-0 text-[#8a91a0]" strokeWidth={1.9} />
+                <CalendarDays className="mt-[2px] h-4 w-4 flex-shrink-0 text-[var(--color-ink-subtle)]" strokeWidth={1.9} />
                 <span className="min-w-0 flex-1 truncate">
                   {objectiveDeadlineMeta ? (
                     <>
                       <span className={`font-medium ${objectiveDeadlineMeta.tone}`}>{objectiveDeadlineMeta.countdown}</span>
-                      <span className="ml-2 text-[#9aa1ad]">{objectiveDeadlineMeta.date}</span>
+                      <span className="ml-2 text-[var(--color-ink-disabled)]">{objectiveDeadlineMeta.date}</span>
                     </>
                   ) : (
-                    <span className="text-[#9aa1ad]">添加截止日期</span>
+                    <span className="text-[var(--color-ink-disabled)]">添加截止日期</span>
                   )}
                 </span>
               </button>
 
               {isDeadlineEditorOpen ? (
                 <div className="absolute left-0 top-[calc(100%+8px)] z-20 w-[280px] rounded-[14px] border border-black/[0.06] bg-white/95 p-3 shadow-[0_16px_40px_rgba(15,23,42,0.14)] backdrop-blur-xl">
-                  <div className="text-[12px] font-medium text-[#5f6673]">设置截止日期</div>
+                  <div className="text-[12px] font-medium text-[var(--color-ink-tertiary)]">设置截止日期</div>
                   <input
                     autoFocus
                     type="date"
@@ -812,11 +884,11 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
                       }
                       setDeadlineError('')
                     }}
-                    className={`mt-2 w-full rounded-[10px] border bg-white px-3 py-2 text-[13px] text-[#2e3137] outline-none focus:border-[#272729]/30 ${
+                    className={`mt-2 w-full rounded-[10px] border bg-white px-3 py-2 text-[13px] text-[var(--color-ink-primary)] outline-none focus:border-black/30 ${
                       deadlineError ? 'border-[#f6465d]/40' : 'border-black/[0.08]'
                     }`}
                   />
-                  <div className={`mt-2 text-[12px] ${deadlineError ? 'text-[#d14a5f]' : 'text-[#9aa1ad]'}`}>
+                  <div className={`mt-2 text-[12px] ${deadlineError ? 'text-[#d14a5f]' : 'text-[var(--color-ink-disabled)]'}`}>
                     {deadlineError || `最多支持 ${MAX_OBJECTIVE_DEADLINE_DAYS} 天，左侧决定是否显示倒计时图标`}
                   </div>
                   <div className="mt-3 flex items-center gap-2">
@@ -824,7 +896,7 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
                       type="button"
                       onClick={() => void saveObjectiveDeadline()}
                       disabled={!deadlineDraft || Boolean(deadlineError)}
-                      className="rounded-[10px] bg-[#272729] px-3 py-1.5 text-[12px] font-medium text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+                      className="rounded-[10px] bg-[var(--color-ink-strong)] px-3 py-1.5 text-[12px] font-medium text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       保存
                     </button>
@@ -845,7 +917,7 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
               onClick={openVisionDialog}
               className="flex w-full items-start gap-2 rounded-[10px] px-1 py-0.5 text-left text-[14px] leading-[1.55] text-[#6d7482] transition-colors hover:bg-black/[0.03] hover:text-[#575f6f]"
             >
-              <Eye className="mt-[2px] h-4 w-4 flex-shrink-0 text-[#8a91a0]" strokeWidth={1.9} />
+              <Eye className="mt-[2px] h-4 w-4 flex-shrink-0 text-[var(--color-ink-subtle)]" strokeWidth={1.9} />
               <span className="min-w-0 flex-1 truncate">{latestVisionPreview}</span>
             </button>
           </div>
@@ -856,8 +928,6 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
         ref={boardScrollRef}
         className="relative min-h-0 flex-1 overflow-x-auto overflow-y-auto px-6 pb-8"
         onContextMenu={(e) => {
-          const target = e.target as HTMLElement
-          if (target.closest('[data-kr-column="true"]')) return
           e.preventDefault()
           setOpenKrMenuId(null)
           setBoardMenuPosition({ x: e.clientX, y: e.clientY })
@@ -876,10 +946,19 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
                 dragColor={activeColor}
                 editingTarget={editingTarget}
                 isSorting={activeKrSortId === `objective-board-kr:${kr.id}`}
+                isHighlighted={highlightedKrId === kr.id}
                 openKrMenuId={openKrMenuId}
                 activeTodoSortId={activeTodoSortId}
                 highlightedTodoId={highlightedTodoId}
+                krColumnRef={(element) => {
+                  if (element) {
+                    krColumnRefs.current.set(kr.id, element)
+                  } else {
+                    krColumnRefs.current.delete(kr.id)
+                  }
+                }}
                 todoItemRefs={todoItemRefs}
+                onSelectKr={handleBoardKrSelect}
                 onEditTargetChange={setEditingTarget}
                 onSaveTitle={saveTitle}
                 onToggleKrMenu={setOpenKrMenuId}
@@ -983,7 +1062,7 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
           isFloatingPanelOpen ? 'pointer-events-none scale-90 opacity-0' : 'opacity-100'
         }`}
         style={{
-          background: '#272729',
+          background: 'var(--color-ink-strong)',
           borderColor: 'rgba(255,255,255,0.88)',
           boxShadow: '0 18px 34px rgba(15,23,42,0.22)',
         }}
@@ -1307,9 +1386,12 @@ interface SortableKrColumnProps {
   dragColor?: string | null
   editingTarget: EditingTarget
   isSorting: boolean
+  isHighlighted: boolean
   openKrMenuId: string | null
   activeTodoSortId: string | null
   highlightedTodoId: string | null
+  krColumnRef?: (element: HTMLDivElement | null) => void
+  onSelectKr?: (kr: Item) => void
   todoItemRefs: React.MutableRefObject<Map<string, HTMLDivElement>>
   onSelectTodo?: (todo: Item) => void
   onEditTargetChange: React.Dispatch<React.SetStateAction<EditingTarget>>
@@ -1327,9 +1409,12 @@ const SortableKrColumn: React.FC<SortableKrColumnProps> = ({
   dragColor,
   editingTarget,
   isSorting,
+  isHighlighted,
   openKrMenuId,
   activeTodoSortId,
   highlightedTodoId,
+  krColumnRef,
+  onSelectKr,
   todoItemRefs,
   onSelectTodo,
   onEditTargetChange,
@@ -1365,7 +1450,10 @@ const SortableKrColumn: React.FC<SortableKrColumnProps> = ({
 
   return (
     <div
-      ref={setNodeRef}
+      ref={(element) => {
+        setNodeRef(element)
+        krColumnRef?.(element)
+      }}
       style={style}
       className={`w-[304px] flex-shrink-0 ${isDragging || isSorting ? 'z-10 opacity-90' : ''}`}
       data-kr-column="true"
@@ -1373,11 +1461,19 @@ const SortableKrColumn: React.FC<SortableKrColumnProps> = ({
       {...listeners}
     >
       <article
+        onClick={() => onSelectKr?.(kr)}
         className={`relative overflow-hidden rounded-[16px] border p-0 shadow-[0_18px_40px_rgba(15,23,42,0.08)] ${cardTheme.shell} ${
           isDragging || isSorting ? 'shadow-[0_22px_48px_rgba(15,23,42,0.16)]' : ''
+        } ${
+          isHighlighted
+            ? 'objective-board-linked-pulse border-dashed border-[rgba(246,70,93,0.34)]'
+            : ''
         }`}
         style={cardTheme.shellStyle}
       >
+        {isHighlighted ? (
+          <div className="pointer-events-none absolute inset-0 z-0 objective-board-linked-overlay-pulse bg-[rgba(246,70,93,0.05)]" />
+        ) : null}
         <div className="px-4 pb-3 pt-3" style={cardTheme.topStyle}>
           <div className="flex items-center justify-between gap-2">
       <div className="min-w-0 flex-1">
@@ -1392,6 +1488,7 @@ const SortableKrColumn: React.FC<SortableKrColumnProps> = ({
                     if (e.key === 'Escape') onEditTargetChange(null)
                   }}
                   onPointerDown={(e) => e.stopPropagation()}
+                  placeholder="新关键结果"
                   className="w-full border-none bg-transparent p-0 text-[17px] font-bold tracking-[-0.01em] text-white outline-none"
                   style={{ fontFamily: KR_HEADER_FONT_FAMILY }}
                 />
@@ -1507,6 +1604,7 @@ const SortableTodoCard: React.FC<SortableTodoCardProps> = ({
   onEditTargetChange,
 }) => {
   const [threadPreview, setThreadPreview] = useState('')
+  const [isThreadPopoverOpen, setIsThreadPopoverOpen] = useState(false)
   const sortableId = `objective-board-todo:${todo.id}`
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: sortableId,
@@ -1550,69 +1648,92 @@ const SortableTodoCard: React.FC<SortableTodoCardProps> = ({
     >
       <div
         ref={todoItemRef}
-        onClick={() => onSelectTodo?.(todo)}
-        className={`group/todo flex items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-left transition-all duration-300 hover:bg-black/[0.035] ${
+        onClick={(event) => {
+          event.stopPropagation()
+          onSelectTodo?.(todo)
+        }}
+        className={`group/todo rounded-[10px] px-2.5 py-2 text-left transition-all duration-300 ${
+          isThreadPopoverOpen ? 'bg-black/[0.045]' : 'hover:bg-black/[0.035]'
+        } ${
           isHighlighted
             ? 'objective-board-linked-pulse border border-dashed border-[rgba(246,70,93,0.34)] bg-[rgba(246,70,93,0.05)]'
             : ''
         }`}
       >
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation()
-            void onToggleTodo(todo)
-          }}
-          className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border transition-colors focus:outline-none focus-visible:outline-none focus-visible:ring-0 ${
-            todo.status === 1 ? 'border-[#8d9199] bg-[#8d9199]' : 'border-[#c8cbd2] bg-transparent'
-          }`}
-        >
-          {todo.status === 1 ? <Check className="h-3 w-3 text-white" strokeWidth={3} /> : null}
-        </button>
+        <div className="grid min-w-0 flex-1 grid-cols-[16px_minmax(0,1fr)] gap-x-2.5 gap-y-0.5">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              void onToggleTodo(todo)
+            }}
+            className={`row-start-1 self-center flex h-4 w-4 items-center justify-center rounded-full border transition-colors focus:outline-none focus-visible:outline-none focus-visible:ring-0 ${
+              todo.status === 1 ? 'border-[#8d9199] bg-[#8d9199]' : 'border-[var(--color-border-muted)] bg-transparent'
+            }`}
+          >
+            {todo.status === 1 ? <Check className="h-3 w-3 text-white" strokeWidth={3} /> : null}
+          </button>
 
-        <div className="min-w-0 flex-1">
-          {editingTarget?.id === todo.id ? (
-            <input
-              autoFocus
-              value={editingTarget.value}
-              onChange={(e) => onEditTargetChange({ ...editingTarget, value: e.target.value })}
-              onBlur={() => void onSaveTitle(todo.id, editingTarget.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  void onSubmitTodoAndCreateNext(todo.id, krId, editingTarget.value)
-                }
-                if (e.key === 'Escape') onEditTargetChange(null)
-              }}
-              onPointerDown={(e) => e.stopPropagation()}
-              placeholder="添加 TODO"
-              className="w-full border-none bg-transparent p-0 text-[14px] font-medium leading-[1.2] text-[#313744] outline-none"
-            />
-          ) : (
-            <button
-              type="button"
-              onDoubleClick={(e) => {
-                e.stopPropagation()
-                onEditTargetChange({ id: todo.id, kind: 'todo', value: todo.title })
-              }}
-              className={`w-full text-left text-[14px] font-medium leading-[1.2] focus:outline-none focus-visible:outline-none focus-visible:ring-0 ${
-                todo.status === 1 ? 'text-[#9a9ea8] line-through' : 'text-[#313744]'
-              }`}
-            >
-              {todo.title || '未命名待办'}
-            </button>
-          )}
+          <div className="col-start-2 row-start-1 flex min-w-0 items-center gap-2">
+            <div className="min-w-0 flex-1">
+              {editingTarget?.id === todo.id ? (
+                <input
+                  autoFocus
+                  value={editingTarget.value}
+                  onChange={(e) => onEditTargetChange({ ...editingTarget, value: e.target.value })}
+                  onBlur={() => void onSaveTitle(todo.id, editingTarget.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      void onSubmitTodoAndCreateNext(todo.id, krId, editingTarget.value)
+                    }
+                    if (e.key === 'Escape') onEditTargetChange(null)
+                  }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  placeholder="添加 TODO"
+                  className="w-full border-none bg-transparent p-0 text-[14px] font-medium leading-5 text-[var(--color-ink-secondary)] outline-none"
+                />
+              ) : (
+                <button
+                  type="button"
+                  onDoubleClick={(e) => {
+                    e.stopPropagation()
+                    onEditTargetChange({ id: todo.id, kind: 'todo', value: todo.title })
+                  }}
+                  className={`w-full text-left text-[14px] font-medium leading-5 focus:outline-none focus-visible:outline-none focus-visible:ring-0 ${
+                    todo.status === 1 ? 'text-[#9a9ea8] line-through' : 'text-[var(--color-ink-secondary)]'
+                  }`}
+                >
+                  {todo.title || '未命名待办'}
+                </button>
+              )}
+            </div>
+
+            <div className="flex h-5 flex-shrink-0 items-center">
+              <div
+                className={`transition-opacity duration-150 ${
+                  isThreadPopoverOpen
+                    ? 'pointer-events-auto opacity-100'
+                    : 'pointer-events-none opacity-0 group-hover/todo:pointer-events-auto group-hover/todo:opacity-100'
+                }`}
+              >
+                <TodoThreadPopover
+                  entityId={todo.id}
+                  entityKind="item"
+                  title={todo.title || '未命名待办'}
+                  onOpenChange={setIsThreadPopoverOpen}
+                />
+              </div>
+            </div>
+          </div>
+
           {threadPreview ? (
-            <div className="mt-0.5 truncate whitespace-nowrap text-[12px] leading-[1.25] text-[#7b7f89]">
+            <div className="col-start-2 row-start-2 truncate whitespace-nowrap text-[12px] leading-[1.25] text-[var(--color-ink-muted)]">
               {threadPreview}
             </div>
           ) : todo.content ? (
-            <div className="mt-0.5 text-[12px] leading-[1.25] text-[#7b7f89]">{todo.content}</div>
+            <div className="col-start-2 row-start-2 text-[12px] leading-[1.25] text-[var(--color-ink-muted)]">{todo.content}</div>
           ) : null}
-        </div>
-
-        <div className="pointer-events-none opacity-0 transition-opacity duration-150 group-hover/todo:pointer-events-auto group-hover/todo:opacity-100">
-          <TodoThreadPopover entityId={todo.id} entityKind="item" title={todo.title || '未命名待办'} />
         </div>
       </div>
     </div>
