@@ -637,7 +637,9 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
     setIsFloatingPanelOpen(false)
   }, [])
 
-  const boardRightPadding = isFloatingPanelOpen ? FLOATING_PANEL_SAFE_RIGHT_PADDING : BOARD_BASE_RIGHT_PADDING
+  // Intel 机型上，浮窗展开时推动主分栏重排会明显放大卡顿感。
+  // 分栏保持稳定布局，联动滚动时再单独按安全区域计算可视范围。
+  const boardRightPadding = BOARD_BASE_RIGHT_PADDING
 
   const openVisionDialog = useCallback(() => {
     setIsVisionDialogOpen(true)
@@ -863,7 +865,7 @@ export const ObjectiveBoard: React.FC<ObjectiveBoardProps> = ({
       >
         <SortableContext items={krColumns.map((kr) => `objective-board-kr:${kr.id}`)} strategy={horizontalListSortingStrategy}>
           <div
-            className="flex min-h-full w-max gap-4 transition-[padding-right] duration-200"
+            className="flex min-h-full w-max gap-4"
             style={{ paddingRight: `${boardRightPadding}px` }}
           >
             {krColumns.map((kr, index) => (

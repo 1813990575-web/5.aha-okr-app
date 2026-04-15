@@ -19,7 +19,7 @@ interface TodayFloatingTaskBoardProps {
   okrRefreshTrigger?: number
 }
 
-export const TodayFloatingTaskBoard: React.FC<TodayFloatingTaskBoardProps> = (props) => {
+export const TodayFloatingTaskBoard: React.FC<TodayFloatingTaskBoardProps> = React.memo((props) => {
   return (
     <TaskBoard
       {...props}
@@ -28,9 +28,8 @@ export const TodayFloatingTaskBoard: React.FC<TodayFloatingTaskBoardProps> = (pr
       className="h-full"
       taskComposerMode="chat-bottom"
       enableHeaderDragRegion={false}
-      glassMode
     />
   )
-}
+})
 
 export default TodayFloatingTaskBoard

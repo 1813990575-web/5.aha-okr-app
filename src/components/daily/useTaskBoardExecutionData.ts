@@ -43,15 +43,17 @@ export function useTaskBoardExecutionData({
   setEditingSourceItemId,
 }: UseTaskBoardExecutionDataOptions): UseTaskBoardExecutionDataResult {
   const [items, setItems] = useState<Item[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(false)
   const [datesWithTasks, setDatesWithTasks] = useState<Set<string>>(new Set())
 
   const loadItems = useCallback(async () => {
     try {
+      setIsLoading(true)
       const allItems = await window.electronAPI.database.getAllItems()
       setItems(allItems)
-      setIsLoading(false)
     } catch {
+      // ignore execution data failures
+    } finally {
       setIsLoading(false)
     }
   }, [])
@@ -72,8 +74,19 @@ export function useTaskBoardExecutionData({
   }, [])
 
   useEffect(() => {
-    void loadItems()
-    void loadAllTaskDates()
+    const runInitialLoad = () => {
+      void loadItems()
+      void loadAllTaskDates()
+    }
+
+    const requestIdle = (window as Window & { requestIdleCallback?: (callback: () => void) => number }).requestIdleCallback
+    if (requestIdle) {
+      const idleId = requestIdle(runInitialLoad)
+      return () => window.cancelIdleCallback?.(idleId)
+    }
+
+    const timer = window.setTimeout(runInitialLoad, 120)
+    return () => window.clearTimeout(timer)
   }, [loadItems, loadAllTaskDates])
 
   useEffect(() => {

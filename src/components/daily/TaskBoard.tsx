@@ -301,7 +301,7 @@ export const TaskBoard: React.FC<TaskBoardProps> = ({
           }, 700)
         }}
       >
-        {isLoading ? (
+        {isLoading && tasks.length === 0 ? (
           <div className="flex items-center justify-center h-32 text-gray-400 text-[14px]">
             加载中...
           </div>
